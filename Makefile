@@ -6,7 +6,11 @@
 # For details see the UNLICENSE file at the root of the source tree.
 #
 
-CC = clang-3.6
+ifeq ($(shell uname), Darwin)
+	CC = clang
+else
+	CC = clang-3.6
+endif
 
 CFLAGS  += -I$(CURDIR)/libs
 
@@ -16,17 +20,28 @@ OBJS 	= autotest.o bit2fp.o printf_swbits.o draw_svg_tiles.o fp2bit.o \
 	hstrrep.o merge_seq.o fpinfo.o pair2net.o sort_seq.o hello_world.o \
 	blinking_led.o jtag_counter.o j1_blinking.o
 
-DYNAMIC_LIBS = libs/libfpga-model.so libs/libfpga-bit.so \
+FPGA_LIBS = libs/libfpga-model.so libs/libfpga-bit.so \
 	libs/libfpga-floorplan.so libs/libfpga-control.so \
-	libs/libfpga-cores.so
+#	libs/libfpga-cores.so
+
+ifeq ($(shell uname), Darwin)
+	DYNAMIC_LIBS = $(FPGA_LIBS:.so=.a)
+	# DEANO TODO OS LibXML support for draw_svg_tiles
+	ALL_PROGS = fpinfo fp2bit bit2fp printf_swbits autotest hstrrep \
+		sort_seq merge_seq pair2net hello_world blinking_led jtag_counter \
+		j1_blinking.o
+else
+	DYNAMIC_LIBS = $(FPGA_LIBS)
+	ALL_PROGS = fpinfo fp2bit bit2fp printf_swbits draw_svg_tiles autotest hstrrep \
+		sort_seq merge_seq pair2net hello_world blinking_led jtag_counter \
+		j1_blinking.o
+endif
 
 .PHONY:	all test clean install uninstall FAKE
 .SECONDARY:
 .SECONDEXPANSION:
 
-all: fpinfo fp2bit bit2fp printf_swbits draw_svg_tiles autotest hstrrep \
-	sort_seq merge_seq pair2net hello_world blinking_led jtag_counter \
-	j1_blinking.o
+all: $(ALL_PROGS)
 
 include Makefile.common
 
@@ -35,6 +50,8 @@ include Makefile.common
 	$(MKDEP)
 
 libs/%.so: FAKE
+	@make -C libs $(notdir $@)
+libs/%.a: FAKE
 	@make -C libs $(notdir $@)
 
 #

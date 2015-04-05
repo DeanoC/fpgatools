@@ -6,7 +6,13 @@
 # For details see the UNLICENSE file at the root of the source tree.
 #
 
-CC = clang-3.6
+# OS X linker doesn't support -soname, and use different extension
+# see : https://developer.apple.com/library/mac/documentation/DeveloperTools/Conceptual/DynamicLibraries/100-Articles/DynamicLibraryDesignGuidelines.html
+ifeq ($(shell uname), Darwin)
+	CC = clang
+else
+	CC = clang-3.6
+endif
 
 LIBS_VERSION_MAJOR = 0
 LIBS_VERSION = $(LIBS_VERSION_MAJOR).0.0
@@ -21,14 +27,22 @@ OBJS := $(LIBFPGA_BIT_OBJS) $(LIBFPGA_MODEL_OBJS) \
 	$(LIBFPGA_FLOORPLAN_OBJS) $(LIBFPGA_CONTROL_OBJS)
 
 DYNAMIC_LIBS = libfpga-model.so libfpga-bit.so libfpga-floorplan.so \
-	libfpga-control.so libfpga-cores.so
+	libfpga-control.so #libfpga-cores.so
 
 DYNAMIC_HEADS = bit.h control.h floorplan.h helper.h model.h parts.h
 
-SHARED_FLAGS = -shared -Wl,-soname,$@.$(LIBS_VERSION_MAJOR)
+ifeq ($(shell uname), Darwin)
+	ALL_LIBS = $(DYNAMIC_LIBS:.so=.a)
+else
+	SHARED_FLAGS = -shared -Wl,-soname,$@.$(LIBS_VERSION_MAJOR)
+	ALL_LIBS = $(DYNAMIC_LIBS) $(DYNAMIC_LIBS:.so=.a)
+endif
+
 .PHONY:	all clean install uninstall FAKE
 
-all: $(DYNAMIC_LIBS) $(DYNAMIC_LIBS:.so=.a)
+all: $(ALL_LIBS)
+	@echo $(DYNAMIC_HEADS)
+	@echo $(ALL_LIBS)
 
 include ../Makefile.common
 

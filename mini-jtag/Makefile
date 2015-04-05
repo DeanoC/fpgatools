@@ -5,7 +5,18 @@
 # For details see the UNLICENSE file at the root of the source tree.
 #
 
-CC = clang-3.6
+# OS X linker doesn't support -soname, and use different extension
+# see : https://developer.apple.com/library/mac/documentation/DeveloperTools/Conceptual/DynamicLibraries/100-Articles/DynamicLibraryDesignGuidelines.html
+ifeq ($(shell uname), Darwin)
+	CC = clang
+	SHARED_EXT = dylib
+	SONAME_FLAGS =
+else
+	CC = clang-3.6
+	SHARED_EXT = so
+	SONAME_FLAGS = -Wl,-soname=$@.$(LIBS_VERSION_MAJOR)
+endif
+
 LDLIBS += `pkg-config libftdi --libs`
 OBJS := mini-jtag.o load-bits.o jtag.o
 
