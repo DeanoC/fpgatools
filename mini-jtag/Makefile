@@ -9,12 +9,8 @@
 # see : https://developer.apple.com/library/mac/documentation/DeveloperTools/Conceptual/DynamicLibraries/100-Articles/DynamicLibraryDesignGuidelines.html
 ifeq ($(shell uname), Darwin)
 	CC = clang
-	SHARED_EXT = dylib
-	SONAME_FLAGS =
 else
 	CC = clang-3.6
-	SHARED_EXT = so
-	SONAME_FLAGS = -Wl,-soname=$@.$(LIBS_VERSION_MAJOR)
 endif
 
 LDLIBS += `pkg-config libftdi --libs`
