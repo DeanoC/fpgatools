@@ -944,11 +944,14 @@ static int read_bits(struct fpga_config* cfg, uint8_t* d, int len,
 
 	last_FDRI_pos = -1;
 	*outdelta = 0;
-	if (cfg->idcode_reg == -1 || cfg->FLR_reg == -1
-	    || (cfg->reg[cfg->idcode_reg].int_v != XC6SLX4
-	        && cfg->reg[cfg->idcode_reg].int_v != XC6SLX9)
-	    || cfg->reg[cfg->FLR_reg].int_v != IOB_WORDS)
-		FAIL(EINVAL);
+//	if (cfg->idcode_reg == -1 || cfg->FLR_reg == -1
+//	    || (cfg->reg[cfg->idcode_reg].int_v != XC6SLX4
+//	        && cfg->reg[cfg->idcode_reg].int_v != XC6SLX9)
+//	    || cfg->reg[cfg->FLR_reg].int_v != IOB_WORDS)
+//		FAIL(EINVAL);
+
+	int iob_words = cfg->reg[cfg->FLR_reg].int_v;
+	POUT(cfg->verbose_read, ("#D IOB_WORDS read as %i\n", cfg->reg[cfg->FLR_reg].int_v));
 
 	cfg->bits.len = (4*505 + 4*144) * FRAME_SIZE + IOB_WORDS*2;
 	cfg->bits.d = calloc(cfg->bits.len, 1 /* elsize */);
@@ -1429,10 +1432,10 @@ fail:
 static struct fpga_config_reg_rw s_defregs_before_bits[] =
 	{{ CMD,		.int_v = CMD_RCRC },
 	 { REG_NOOP },
-	 { FLR,		.int_v = IOB_WORDS }, 
+	 { FLR,		.int_v = 0 },  // TODO Deano IOB_WORDS from device config
 	 { COR1,	.int_v = COR1_DEF | COR1_CRC_BYPASS }, 
 	 { COR2,	.int_v = COR2_DEF }, 
-	 { IDCODE,	.int_v = XC6SLX9 }, 
+	 { IDCODE,	.int_v = 0 }, 
 	 { MASK,	.int_v = MASK_DEF }, 
 	 { CTL,		.int_v = CTL_DEF }, 
 	 { REG_NOOP }, { REG_NOOP }, { REG_NOOP }, { REG_NOOP },
@@ -1587,7 +1590,7 @@ static int write_bits(FILE* f, struct fpga_model* model)
 	char padding_frame[FRAME_SIZE];
 
 	RC_CHECK(model);
-	bits.len = IOB_DATA_START + IOB_DATA_LEN;
+	bits.len = IOB_DATA_START + 896*2 ; // TODO Deano based on model! values set ti slx9
 	bits.d = calloc(bits.len, /*elsize*/ 1);
 	if (!bits.d) FAIL(ENOMEM);
 
@@ -1604,7 +1607,7 @@ static int write_bits(FILE* f, struct fpga_model* model)
 	if (nwritten != sizeof(u16)) FAIL(errno);
 
 	u32 = (FRAMES_DATA_LEN + NUM_ROWS*PADDING_FRAMES_PER_ROW*FRAME_SIZE
-		+ BRAM_DATA_LEN + IOB_DATA_LEN)/2;
+		+ BRAM_DATA_LEN + 896*2)/2; // TODO Deano 896=IOB_WORDS
 	u32++; // there is one extra 16-bit 0x0000 padding at the end
 	u32 = __cpu_to_be32(u32);
 	nwritten = fwrite(&u32, /*size*/ 1, sizeof(u32), f);
@@ -1633,8 +1636,8 @@ static int write_bits(FILE* f, struct fpga_model* model)
 
 	// write IOB data
 	nwritten = fwrite(&bits.d[IOB_DATA_START],
-		/*size*/ 1, IOB_DATA_LEN, f);
-	if (nwritten != IOB_DATA_LEN) FAIL(errno);
+		/*size*/ 1, 896*2, f); // TODO Deano
+	if (nwritten != 896*2) FAIL(errno); // TODO Deano
 
 	// write extra 0x0000 padding at end of FDRI block
 	u16 = 0;

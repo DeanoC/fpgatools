@@ -21,8 +21,8 @@ OBJS 	= autotest.o bit2fp.o printf_swbits.o draw_svg_tiles.o fp2bit.o \
 	blinking_led.o jtag_counter.o j1_blinking.o
 
 FPGA_LIBS = libs/libfpga-model.so libs/libfpga-bit.so \
-	libs/libfpga-floorplan.so libs/libfpga-control.so \
-#	libs/libfpga-cores.so
+	libs/libfpga-floorplan.so libs/libfpga-control.so 
+	#\libs/libfpga-cores.so
 
 ifeq ($(shell uname), Darwin)
 	DYNAMIC_LIBS = $(FPGA_LIBS:.so=.a)
@@ -50,7 +50,7 @@ include Makefile.common
 	$(MKDEP)
 
 libs/%.so: FAKE
-	@make -C libs $(notdir $@)
+	@$(MAKE) -C libs $(notdir $@)
 
 libs/%.a: FAKE
 	@$(MAKE) -C libs $(notdir $@)

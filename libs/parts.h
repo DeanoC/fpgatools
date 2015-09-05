@@ -142,7 +142,7 @@ const char *xc6_find_pkg_pin(const struct xc6_pkg_info *pkg_info, const char *de
 #define BRAM_DATA_START		FRAMES_DATA_LEN
 #define BRAM_DATA_LEN		(4*144*FRAME_SIZE)
 #define IOB_DATA_START		(BRAM_DATA_START + BRAM_DATA_LEN)
-#define IOB_WORDS		896 // 16-bit words, for slx4 and slx9
+#define IOB_WORDS		(cfg->reg[cfg->FLR_reg].int_v) // 16-bit words, for slx4 and slx9
 #define IOB_DATA_LEN		(IOB_WORDS*2)
 #define IOB_ENTRY_LEN		8
 #define BITS_LEN		(IOB_DATA_START+IOB_DATA_LEN)

@@ -82,7 +82,7 @@ struct fpga_config
 	// indices into reg (initialized to -1)
 	int num_regs_before_bits;
 	int idcode_reg;
-	int FLR_reg;
+	int FLR_reg; // Deano IOB_WORDS is same value as reg[FLR_reg].int_v I beleive...
 
 	struct fpga_bits bits;
 	uint32_t auto_crc;
