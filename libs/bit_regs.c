@@ -63,6 +63,7 @@ int read_bitfile(struct fpga_config* cfg, FILE* f, int verbose_read)
 	if (bit_len != file_len)
 		FAIL(EINVAL);
 
+
 	// parse header and commands
 	if ((rc = parse_header(cfg, bit_data, bit_len, /*inpos*/ 0, &bit_cur)))
 		FAIL(rc);
@@ -548,9 +549,9 @@ static int dump_maj_zero(const uint8_t* bits, int row, int major)
 	int minor;
 
 	for (minor = 0; minor < get_major_minors(XC6SLX9, major); minor++)
-		printf_clock(&bits[minor*FRAME_SIZE], row, major, minor);
+		printf_clock(&bits[minor*XC6_FRAME_SIZE], row, major, minor);
 	for (minor = 0; minor < get_major_minors(XC6SLX9, major); minor++)
-		printf_frames(&bits[minor*FRAME_SIZE], /*max_frames*/ 1,
+		printf_frames(&bits[minor*XC6_FRAME_SIZE], /*max_frames*/ 1,
 			row, major, minor, /*print_empty*/ 0, /*no_clock*/ 1);
 	return 0;
 }
@@ -560,9 +561,9 @@ static int dump_maj_left(const uint8_t* bits, int row, int major)
 	int minor;
 
 	for (minor = 0; minor < get_major_minors(XC6SLX9, major); minor++)
-		printf_clock(&bits[minor*FRAME_SIZE], row, major, minor);
+		printf_clock(&bits[minor*XC6_FRAME_SIZE], row, major, minor);
 	for (minor = 0; minor < get_major_minors(XC6SLX9, major); minor++)
-		printf_frames(&bits[minor*FRAME_SIZE], /*max_frames*/ 1,
+		printf_frames(&bits[minor*XC6_FRAME_SIZE], /*max_frames*/ 1,
 			row, major, minor, /*print_empty*/ 0, /*no_clock*/ 1);
 	return 0;
 }
@@ -572,9 +573,9 @@ static int dump_maj_right(const uint8_t* bits, int row, int major)
 	int minor;
 
 	for (minor = 0; minor < get_major_minors(XC6SLX9, major); minor++)
-		printf_clock(&bits[minor*FRAME_SIZE], row, major, minor);
+		printf_clock(&bits[minor*XC6_FRAME_SIZE], row, major, minor);
 	for (minor = 0; minor < get_major_minors(XC6SLX9, major); minor++)
-		printf_frames(&bits[minor*FRAME_SIZE], /*max_frames*/ 1,
+		printf_frames(&bits[minor*XC6_FRAME_SIZE], /*max_frames*/ 1,
 			row, major, minor, /*print_empty*/ 0, /*no_clock*/ 1);
 	return 0;
 }
@@ -585,14 +586,14 @@ static int dump_maj_logic(const uint8_t* bits, int row, int major)
 	int minor, i, logdev_start, logdev_end;
 
 	for (minor = 0; minor < xci->majors[major].minors; minor++)
-		printf_clock(&bits[minor*FRAME_SIZE], row, major, minor);
+		printf_clock(&bits[minor*XC6_FRAME_SIZE], row, major, minor);
 
 	// 0:19 routing minor pairs
 	for (i = 0; i < 10; i++)
-		printf_routing_2minors(&bits[i*2*FRAME_SIZE], row, major, i*2);
+		printf_routing_2minors(&bits[i*2*XC6_FRAME_SIZE], row, major, i*2);
 
 	// mi20 as 64-char 0/1 string
-	printf_v64_mi20(&bits[20*FRAME_SIZE], row, major);
+	printf_v64_mi20(&bits[20*XC6_FRAME_SIZE], row, major);
 
 	logdev_start = 0;
 	logdev_end = 15;
@@ -615,7 +616,7 @@ static int dump_maj_logic(const uint8_t* bits, int row, int major)
 		}
 		if (logdev_end < 15)
 			printf_extrabits(bits, 21, 2, i*64 + XC6_HCLK_BITS, (15-logdev_end)*64, row, major);
-		printf_frames(&bits[23*FRAME_SIZE], /*max_frames*/ 1,
+		printf_frames(&bits[23*XC6_FRAME_SIZE], /*max_frames*/ 1,
 			row, major, 23, /*print_empty*/ 0, /*no_clock*/ 1);
 		if (logdev_start)
 			printf_extrabits(bits, 24, 2, 0, logdev_start*64, row, major);
@@ -627,7 +628,7 @@ static int dump_maj_logic(const uint8_t* bits, int row, int major)
 			printf_extrabits(bits, 24, 2, i*64 + XC6_HCLK_BITS, (15-logdev_end)*64, row, major);
 
 		// X devices
-		printf_frames(&bits[26*FRAME_SIZE], /*max_frames*/ 1,
+		printf_frames(&bits[26*XC6_FRAME_SIZE], /*max_frames*/ 1,
 			row, major, 26, /*print_empty*/ 0, /*no_clock*/ 1);
 		if (logdev_start)
 			printf_extrabits(bits, 27, 4, 0, logdev_start*64, row, major);
@@ -652,7 +653,7 @@ static int dump_maj_logic(const uint8_t* bits, int row, int major)
 		}
 		if (logdev_end < 15)
 			printf_extrabits(bits, 21, 4, i*64 + XC6_HCLK_BITS, (15-logdev_end)*64, row, major);
-		printf_frames(&bits[25*FRAME_SIZE], /*max_frames*/ 1,
+		printf_frames(&bits[25*XC6_FRAME_SIZE], /*max_frames*/ 1,
 			row, major, 25, /*print_empty*/ 0, /*no_clock*/ 1);
 		// X devices
 		if (logdev_start)
@@ -669,7 +670,7 @@ static int dump_maj_logic(const uint8_t* bits, int row, int major)
 		// one extra minor in the center major
 		if (xci->majors[major].flags & XC_MAJ_CENTER) {
 			if (xci->majors[major].minors != 31) HERE();
-			printf_frames(&bits[30*FRAME_SIZE], /*max_frames*/ 1,
+			printf_frames(&bits[30*XC6_FRAME_SIZE], /*max_frames*/ 1,
 				row, major, 30, /*print_empty*/ 0, /*no_clock*/ 1);
 		} else { // XL
 			if (xci->majors[major].minors != 30) HERE();
@@ -687,7 +688,7 @@ static void printf_minor_diff(int row, int major, int minor,
 	char v16_str[32];
 
 	// print words as bits (cpu bit ordering)
-	for (word_i = 0; word_i < FRAME_SIZE/XC6_WORD_BYTES; word_i++) {
+	for (word_i = 0; word_i < XC6_FRAME_SIZE/XC6_WORD_BYTES; word_i++) {
 		if (word_i == XC6_HCLK_POS/XC6_WORD_BYTES)
 			sprintf(v16_str, "v16_clk");
 		else
@@ -708,14 +709,14 @@ static void printf_minors(int row, int major, int minor, int num_minors,
 	char v16_str[32];
 
 	// print words as bits (cpu bit ordering)
-	for (word_i = 0; word_i < FRAME_SIZE/XC6_WORD_BYTES; word_i++) {
+	for (word_i = 0; word_i < XC6_FRAME_SIZE/XC6_WORD_BYTES; word_i++) {
 		if (word_i == XC6_HCLK_POS/XC6_WORD_BYTES)
 			sprintf(v16_str, "v16_clk");
 		else
 			sprintf(v16_str, "v16_%i",
 				word_i<XC6_HCLK_POS/XC6_WORD_BYTES ? word_i : word_i - 1);
 		for (minor_i = minor; minor_i < minor + num_minors; minor_i++) {
-			w = frame_get_cpuword(&major_bits[minor_i*FRAME_SIZE
+			w = frame_get_cpuword(&major_bits[minor_i*XC6_FRAME_SIZE
 				+ word_i*XC6_WORD_BYTES]);
 			if (!w) continue;
 			printf("r%i ma%i %s mi%i %s", row, major, v16_str, minor_i, fmt_word(w));
@@ -728,14 +729,14 @@ static int dump_maj_bram(const uint8_t *bits, int row, int major)
 	int minor, i;
 
 	for (minor = 0; minor < get_major_minors(XC6SLX9, major); minor++)
-		printf_clock(&bits[minor*FRAME_SIZE], row, major, minor);
+		printf_clock(&bits[minor*XC6_FRAME_SIZE], row, major, minor);
 
 	// 0:19 routing minor pairs
 	for (i = 0; i < 10; i++)
-		printf_routing_2minors(&bits[i*2*FRAME_SIZE], row, major, i*2);
+		printf_routing_2minors(&bits[i*2*XC6_FRAME_SIZE], row, major, i*2);
 
 	// mi20 as 64-char 0/1 string
-	printf_v64_mi20(&bits[20*FRAME_SIZE], row, major);
+	printf_v64_mi20(&bits[20*XC6_FRAME_SIZE], row, major);
 
 	printf_minors(row, major, /*minor*/ 21, /*num_minors*/ 4, bits);
 	return 0;
@@ -746,17 +747,17 @@ static int dump_maj_macc(const uint8_t* bits, int row, int major)
 	int minor, i;
 
 	for (minor = 0; minor < get_major_minors(XC6SLX9, major); minor++)
-		printf_clock(&bits[minor*FRAME_SIZE], row, major, minor);
+		printf_clock(&bits[minor*XC6_FRAME_SIZE], row, major, minor);
 
 	// 0:19 routing minor pairs
 	for (i = 0; i < 10; i++)
-		printf_routing_2minors(&bits[i*2*FRAME_SIZE], row, major, i*2);
+		printf_routing_2minors(&bits[i*2*XC6_FRAME_SIZE], row, major, i*2);
 
 	// mi20 as 64-char 0/1 string
-	printf_v64_mi20(&bits[20*FRAME_SIZE], row, major);
+	printf_v64_mi20(&bits[20*XC6_FRAME_SIZE], row, major);
 
 	for (minor = 21; minor < get_major_minors(XC6SLX9, major); minor++)
-		printf_frames(&bits[minor*FRAME_SIZE], /*max_frames*/ 1,
+		printf_frames(&bits[minor*XC6_FRAME_SIZE], /*max_frames*/ 1,
 			row, major, minor, /*print_empty*/ 0, /*no_clock*/ 1);
 	return 0;
 }
@@ -775,7 +776,7 @@ static int dump_bits(struct fpga_config* cfg)
 	// type0
 	for (major = 0; major <= get_rightside_major(idcode); major++) {
 		for (row = num_rows-1; row >= 0; row--) {
-			off = (row*get_frames_per_row(idcode) + get_major_framestart(idcode, major)) * FRAME_SIZE;
+			off = (row*get_frames_per_row(idcode) + get_major_framestart(idcode, major)) * XC6_FRAME_SIZE;
 			switch (get_major_type(idcode, major)) {
 				case MAJ_ZERO:
 					rc = dump_maj_zero(&cfg->bits.d[off], row, major);
@@ -815,12 +816,16 @@ fail:
 static int dump_bram(struct fpga_config *cfg)
 {
 	int row, i;
+	int idcode;
+
+	idcode = cfg->reg[cfg->idcode_reg].int_v;
+	const struct xc_die* die = xc_die_info(idcode);
 
 	for (row = 3; row >= 0; row--) {
 		for (i = XC6_BRAM16_DEVS_PER_ROW-1; i >= 0; i--) {
-			printf_ramb_data(&cfg->bits.d[BRAM_DATA_START
+			printf_ramb_data(&cfg->bits.d[ xc6_get_bram_start(die)
 				+ (row*XC6_BRAM16_DEVS_PER_ROW+i)
-				  *XC6_BRAM_DATA_FRAMES_PER_DEV*FRAME_SIZE],
+				  *XC6_BRAM_DATA_FRAMES_PER_DEV*XC6_FRAME_SIZE],
 				row, i);
 		}
 	}
@@ -830,6 +835,9 @@ static int dump_bram(struct fpga_config *cfg)
 int dump_config(struct fpga_config* cfg, int flags)
 {
 	int rc;
+
+	int idcode = cfg->reg[cfg->idcode_reg].int_v;
+	const struct xc_die* die = xc_die_info(idcode);
 
 	if (flags & DUMP_HEADER_STR)
 		dump_header(cfg);
@@ -843,7 +851,7 @@ int dump_config(struct fpga_config* cfg, int flags)
 		rc = dump_bram(cfg);
 		if (rc) FAIL(rc);
 		printf_type2(cfg->bits.d, cfg->bits.len,
-			BRAM_DATA_START + BRAM_DATA_LEN, IOB_WORDS*2/8);
+			xc6_get_bram_start(die) + xc6_get_bram_data_len(die), xc6_get_iob_data_len(die)/8);
 		if (flags & DUMP_CRC)
 			printf("auto-crc 0x%X\n", cfg->auto_crc);
 	}
@@ -914,6 +922,7 @@ static int parse_header(struct fpga_config* cfg, uint8_t* d, int len,
 		strcpy(cfg->header_str[i-'a'], (char*) &d[inpos + *outdelta + 3]);
 		*outdelta += 3 + str_len;
 	}
+
 	return 0;
 }
 
@@ -926,38 +935,52 @@ static int FAR_pos(int FAR_row, int FAR_major, int FAR_minor)
 	if (FAR_row > 3 || FAR_major > 17
 	    || FAR_minor >= get_major_minors(XC6SLX9, FAR_major))
 		return -1;
-	result = FAR_row * 505*FRAME_SIZE;
+	result = FAR_row * XC6_FRAMES_PER_ROW*XC6_FRAME_SIZE;
 	for (i = 0; i < FAR_major; i++)
-		result += get_major_minors(XC6SLX9, i)*FRAME_SIZE;
-	return result + FAR_minor*FRAME_SIZE;
+		result += get_major_minors(XC6SLX9, i)*XC6_FRAME_SIZE;
+	return result + FAR_minor*XC6_FRAME_SIZE;
 }
-
+// FROM Torc but is WRONG
+//		Constant frame length of 41 32-bit words for the entire Spartan6 family.  Note 
+//		that this length applies only to non-IOB frames.  
+// Correct (from U360) is 65 16 words with IOB frame lengths defined by the bitstream FLR register plus one.
 static int read_bits(struct fpga_config* cfg, uint8_t* d, int len,
 	int inpos, int* outdelta)
 {
 	int src_off, packet_hdr_type, packet_hdr_opcode;
 	int packet_hdr_register, packet_hdr_wordcount;
 	int FAR_block, FAR_row, FAR_major, FAR_minor, i, j, rc, MFW_src_off;
-	int offset_in_bits, block0_words, padding_frames, last_FDRI_pos;
+	int offset_in_bits, padding_frames, last_FDRI_pos;
 	uint16_t u16;
 	uint32_t u32;
+	int block0_words, block1_words, block2_words;
 
 	last_FDRI_pos = -1;
 	*outdelta = 0;
+
+	if (cfg->idcode_reg == -1 || cfg->FLR_reg == -1 )
+	{
+		FAIL(EINVAL);
+		return 0;
+	}
+
+	const struct xc_die* die = xc_die_info( cfg->reg[cfg->idcode_reg].int_v );
+	if( die == NULL) {
+		FAIL(EINVAL);
+		return 0;
+	}
 //	if (cfg->idcode_reg == -1 || cfg->FLR_reg == -1
 //	    || (cfg->reg[cfg->idcode_reg].int_v != XC6SLX4
-//	        && cfg->reg[cfg->idcode_reg].int_v != XC6SLX9)
-//	    || cfg->reg[cfg->FLR_reg].int_v != IOB_WORDS)
+//	        && cfg->reg[cfg->idcode_reg].int_v != XC6SLX9))
 //		FAIL(EINVAL);
 
-	int iob_words = cfg->reg[cfg->FLR_reg].int_v;
 	POUT(cfg->verbose_read, ("#D IOB_WORDS read as %i\n", cfg->reg[cfg->FLR_reg].int_v));
 
-	cfg->bits.len = (4*505 + 4*144) * FRAME_SIZE + IOB_WORDS*2;
-	cfg->bits.d = calloc(cfg->bits.len, 1 /* elsize */);
+	cfg->bits.len = len;//(4*505 + 4*144) * XC6_FRAME_SIZE + IOB_WORDS*2;
+	cfg->bits.d = calloc(len, 1 /* elsize */);
 	if (!cfg->bits.d) FAIL(ENOMEM);
 	cfg->auto_crc = 0;
-	POUT(cfg->verbose_read, ("#D expected bits length is %i bytes\n", cfg->bits.len));
+	//POUT(cfg->verbose_read, ("#D expected bits length is %i bytes actual length passed in is %i\n", cfg->bits.len, len));
 
 	FAR_block = -1;
 	FAR_row = -1;
@@ -967,46 +990,70 @@ static int read_bits(struct fpga_config* cfg, uint8_t* d, int len,
 	// Go through bit_file from first_FAR_off (inpos) until last byte
 	// of IOB was read, plus padding, plus CRC verification.
 	src_off = inpos;
+
 	while (src_off < len) {
-		if (src_off + 2 > len) FAIL(EINVAL);
+		if (src_off + 2 > len) {
+			HERE();
+			FAIL(EINVAL);
+		}
 		u16 = __be16_to_cpu(*(uint16_t*)&d[src_off]);
 		src_off += 2;
 
 		// 3 bits: 001 = Type 1; 010 = Type 2
 		packet_hdr_type = (u16 & 0xE000) >> 13;
-		if (packet_hdr_type != 1 && packet_hdr_type != 2)
+		if (packet_hdr_type != 1 && packet_hdr_type != 2) {
+			POUT(cfg->verbose_read,("#D src_off %i len %i\n",src_off,len));
 			FAIL(EINVAL);
+		}
 
 		// 2 bits: 00 = noop; 01 = read; 10 = write; 11 = reserved
 		packet_hdr_opcode = (u16 & 0x1800) >> 11;
 		if (packet_hdr_opcode == 3) FAIL(EINVAL);
 
 		if (packet_hdr_opcode == 0) { // noop
-			if (packet_hdr_type != 1 || u16 & 0x07FF) FAIL(EINVAL);
+			if (packet_hdr_type != 1 || u16 & 0x07FF) {
+				HERE();
+				FAIL(EINVAL);
+			}
 			continue;
 		}
 
 		// Now we must look at a Type 1 command
 		packet_hdr_register = (u16 & 0x07E0) >> 5;
 		packet_hdr_wordcount = u16 & 0x001F;
-		if (src_off + packet_hdr_wordcount*2 > len) FAIL(EINVAL);
+		if (src_off + packet_hdr_wordcount*2 > len) {
+			HERE();
+			FAIL(EINVAL);
+		}
 
 		if (packet_hdr_type == 1) {
 			if (packet_hdr_register == CMD) {
-				if (packet_hdr_wordcount != 1) FAIL(EINVAL);
+				if (packet_hdr_wordcount != 1) {
+					HERE();
+					FAIL(EINVAL);
+				}
 				u16 = __be16_to_cpu(
 					*(uint16_t*)&d[src_off]);
 				if (u16 == CMD_GRESTORE || u16 == CMD_LFRM) {
-					if (last_FDRI_pos == -1) FAIL(EINVAL);
+					if (last_FDRI_pos == -1) {
+						HERE();
+						FAIL(EINVAL);
+					}
 					src_off = last_FDRI_pos;
 					goto success;
 				}
 				if (u16 != CMD_MFW && u16 != CMD_WCFG)
 					FAIL(EINVAL);
 				if (u16 == CMD_MFW) {
-					if (FAR_block != 0) FAIL(EINVAL);
+					if (FAR_block != 0) {
+						HERE();
+						FAIL(EINVAL);
+					}
 					MFW_src_off = FAR_pos(FAR_row, FAR_major, FAR_minor);
-					if (MFW_src_off == -1) FAIL(EINVAL);
+					if (MFW_src_off == -1) {
+						HERE();
+						FAIL(EINVAL);
+					}
 				}
 				src_off += 2;
 				continue;
@@ -1014,14 +1061,20 @@ static int read_bits(struct fpga_config* cfg, uint8_t* d, int len,
 			if (packet_hdr_register == FAR_MAJ) {
 				uint16_t maj, min;
 
-				if (packet_hdr_wordcount != 2) FAIL(EINVAL);
+				if (packet_hdr_wordcount != 2) {
+					HERE();
+					FAIL(EINVAL);
+				}
 				maj = __be16_to_cpu(*(uint16_t*)
 					&d[src_off]);
 				min = __be16_to_cpu(*(uint16_t*)
 					&d[src_off+2]);
 
 				FAR_block = (maj & 0xF000) >> 12;
-				if (FAR_block > 7) FAIL(EINVAL);
+				if (FAR_block > 7) {
+					HERE();
+					FAIL(EINVAL);
+				}
 				FAR_row = (maj & 0x0F00) >> 8;
 				FAR_major = maj & 0x00FF;
 				FAR_minor = min & 0x03FF;
@@ -1031,17 +1084,29 @@ static int read_bits(struct fpga_config* cfg, uint8_t* d, int len,
 			if (packet_hdr_register == MFWR) {
 				uint32_t first_dword, second_dword;
 
-				if (packet_hdr_wordcount != 4) FAIL(EINVAL);
+				if (packet_hdr_wordcount != 4) {
+					HERE();
+					FAIL(EINVAL);
+				}
 				first_dword = __be32_to_cpu(
 					*(uint32_t*)&d[src_off]);
 				second_dword = __be32_to_cpu(
 					*(uint32_t*)&d[src_off+4]);
-				if (first_dword || second_dword) FAIL(EINVAL);
+				if (first_dword || second_dword) {
+					HERE();
+					FAIL(EINVAL);
+				}
 				// The first MFWR will overwrite itself, so
 				// use memmove().
-				if (FAR_block != 0) FAIL(EINVAL);
+				if (FAR_block != 0) {
+					HERE();
+					FAIL(EINVAL);
+				}
 				offset_in_bits = FAR_pos(FAR_row, FAR_major, FAR_minor);
-				if (offset_in_bits == -1) FAIL(EINVAL);
+				if (offset_in_bits == -1) {
+					HERE();
+					FAIL(EINVAL);
+				}
 				memmove(&cfg->bits.d[offset_in_bits], &cfg->bits.d[MFW_src_off], 130);
 				   
 				src_off += 8;
@@ -1051,26 +1116,51 @@ static int read_bits(struct fpga_config* cfg, uint8_t* d, int len,
 		}
 
 		// packet type must be 2 here
-		if (packet_hdr_wordcount != 0) FAIL(EINVAL);
-		if (packet_hdr_register != FDRI) FAIL(EINVAL);
+		if (packet_hdr_wordcount != 0) {
+			HERE();
+			FAIL(EINVAL);
+		}
+		if (packet_hdr_register != FDRI) {
+			HERE();
+			FAIL(EINVAL);
+		}
 
-		if (src_off + 4 > len) FAIL(EINVAL);
+		if (src_off + 4 > len) {
+			HERE();
+			FAIL(EINVAL);
+		}
 		u32 = __be32_to_cpu(*(uint32_t*)&d[src_off]);
 		src_off += 4;
-		if (src_off+2*u32 > len) FAIL(EINVAL);
-		if (2*u32 < 130) FAIL(EINVAL);
+		if (src_off+2*u32 > len) {
+			HERE();
+			FAIL(EINVAL);
+		}
+		if (2*u32 < 130) {
+			HERE();
+			FAIL(EINVAL);
+		}
 
 		last_FDRI_pos = src_off+u32*2+/*auto-crc*/4;
-		POUT(cfg->verbose_read, ("#D src 0x%X: %i fdri words, last_FDRI_pos %i\n",
-			src_off-4, u32, last_FDRI_pos));
+		POUT(cfg->verbose_read, ("#D src 0x%X: %i fdri words, last_FDRI_pos %i len %i\n",
+			src_off-4, u32, last_FDRI_pos,len));
 
 		// fdri words u32
 		if (FAR_block == -1 || FAR_block > 1 || FAR_row == -1
-		    || FAR_major == -1 || FAR_minor == -1)
+		    || FAR_major == -1 || FAR_minor == -1) {
+			HERE();
 			FAIL(EINVAL);
+		}
+
+		// 65 words per frame
+		// 9sxl Block 0 = 2028 frames (NUM_ROWS*(FRAMES_PER_ROWS+PADDING_FRAMES_PER_ROW)) = 131,820 words
+		//      Block 1 = 37440 frames = maximum 2,433,600 words (size depends on bitstream)
+		//		Block 2 = 897 frames = 58,305 words
 
 		block0_words = 0;
-		if (!FAR_block) {
+		block1_words = 0;
+		block2_words = 0;
+
+		if ( FAR_block == 0) {
 
 			offset_in_bits = FAR_pos(FAR_row, FAR_major, FAR_minor);
 			if (offset_in_bits == -1) FAIL(EINVAL);
@@ -1078,20 +1168,30 @@ static int read_bits(struct fpga_config* cfg, uint8_t* d, int len,
 				("#D FAR_pos r%i ma%i mi%i = %i bytes\n",
 				 FAR_row, FAR_major, FAR_minor, offset_in_bits));
 
-			if (!FAR_row && !FAR_major && !FAR_minor
-			    && u32 > 4*(505+2)*XC6_FRAME_WORDS)
-				block0_words = 4*(505+2)*XC6_FRAME_WORDS;
-			else {
+			if (!FAR_row && !FAR_major && !FAR_minor ) {
+				const int padding_size = (die->num_rows * PADDING_FRAMES_PER_ROW * XC6_FRAME_SIZE);
+
+				// entire bitstream (FAR == 0)
+				block0_words = (xc6_get_frame_data_len(die)+padding_size) / XC6_WORD_BYTES;
+				block2_words = xc6_get_iob_data_len(die) / XC6_WORD_BYTES;
+				POUT(cfg->verbose_read, ("#D %i block0 + block2 words\n", block0_words + block2_words));
+				block1_words = u32 - block2_words - block0_words - 1; // extra 1 is the last 16 bit extra data index (usually 0)
+			} else  {
+				// TODO 
 				block0_words = u32;
 				if (block0_words % XC6_FRAME_WORDS) FAIL(EINVAL);
 			}
-			POUT(cfg->verbose_read, ("#D %i block0 words\n", block0_words));
+
+			POUT(cfg->verbose_read, ("#D %i block0 words, %i block1_words, %i block2_words\n", block0_words, block1_words, block2_words));
+
 			padding_frames = 0;
-			for (i = 0; i < block0_words/XC6_FRAME_WORDS; i++) {
-				if (i && i+1 == block0_words/XC6_FRAME_WORDS) {
-					for (j = 0; j < FRAME_SIZE; j++) {
-						if (d[src_off+i*130+j]
-						    != 0xFF) break;
+			int frames = block0_words/XC6_FRAME_WORDS;
+			for (i = 0; i < frames; i++) {
+
+				//------ PADDING FRAME handling --------
+				if (i && i+1 == frames) {
+					for (j = 0; j < XC6_FRAME_SIZE; j++) {
+						if (d[src_off+i*130+j] != 0xFF) break;
 					}
 					// Not sure about the exact logic to
 					// determine a padding frame. Maybe
@@ -1099,60 +1199,72 @@ static int read_bits(struct fpga_config* cfg, uint8_t* d, int len,
 					// the frame as a padding frame when
 					// it's the last frame of a block and
 					// all-1.
-					if (j >= FRAME_SIZE)
+					if (j >= XC6_FRAME_SIZE)
 						break;
 				}
-				if (!FAR_major && !FAR_minor
-				    && (i%507 == 505)) {
-					for (j = 0; j < 2*FRAME_SIZE; j++) {
-						if (d[src_off+i*FRAME_SIZE+j]
-						    != 0xFF) FAIL(EINVAL);
+				if (!FAR_major && !FAR_minor && (i%507 == 505)) {
+					for (j = 0; j < 2*XC6_FRAME_SIZE; j++) {
+						if (d[src_off+i*XC6_FRAME_SIZE+j] != 0xFF) {
+							HERE();
+							FAIL(EINVAL);
+						}
 					}
 					i++;
 					padding_frames += 2;
 					continue;
 				}
+				//------ PADDING FRAME handling --------
 				if (cfg->verbose_read && offset_in_bits) {
 					printf("#D copying %i bytes from file_off 0x%X to bits_off %i\n",
-						FRAME_SIZE, src_off+i*FRAME_SIZE,
-						offset_in_bits + (i-padding_frames)*FRAME_SIZE);
+						XC6_FRAME_SIZE, src_off+i*XC6_FRAME_SIZE,
+						offset_in_bits + (i-padding_frames)*XC6_FRAME_SIZE);
 
-					for (j = 0; j < FRAME_SIZE; j++) {
-						if (cfg->bits.d[offset_in_bits + (i-padding_frames)*FRAME_SIZE + j])
+					for (j = 0; j < XC6_FRAME_SIZE; j++) {
+						if (cfg->bits.d[offset_in_bits + (i-padding_frames)*XC6_FRAME_SIZE + j])
 							break;
 					}
-					if (j >= FRAME_SIZE)
+					if (j >= XC6_FRAME_SIZE)
 						printf("dest all-0\n");
 					else {
 						printf("dest {\n");
-						dump_data(1, &cfg->bits.d[offset_in_bits + (i-padding_frames)*FRAME_SIZE],
-							FRAME_SIZE, 16);
+						dump_data(1, &cfg->bits.d[offset_in_bits + (i-padding_frames)*XC6_FRAME_SIZE],
+							XC6_FRAME_SIZE, 16);
 						printf("}\n");
 					}
 					printf("src {\n");
-					dump_data(1, &d[src_off + i*FRAME_SIZE], FRAME_SIZE, 16);
+					dump_data(1, &d[src_off + i*XC6_FRAME_SIZE], XC6_FRAME_SIZE, 16);
 					printf("}\n");
 				}
-				if (offset_in_bits)
+				if (offset_in_bits) 
+				{
 					printf_minor_diff(FAR_row, FAR_major, FAR_minor,
-						&cfg->bits.d[offset_in_bits + (i-padding_frames)*FRAME_SIZE],
-						&d[src_off + i*FRAME_SIZE]);
+						&cfg->bits.d[offset_in_bits + (i-padding_frames)*XC6_FRAME_SIZE],
+						&d[src_off + i*XC6_FRAME_SIZE]);
+				}
+
+				// copy frame data from bitstream in model
 				memcpy(&cfg->bits.d[offset_in_bits
-					+ (i-padding_frames)*FRAME_SIZE],
-					&d[src_off + i*FRAME_SIZE], FRAME_SIZE);
+					+ (i-padding_frames)*XC6_FRAME_SIZE],
+					&d[src_off + i*XC6_FRAME_SIZE], XC6_FRAME_SIZE);
 			}
 		}
+
+		// slx9 2028 Type 0, 37440 Type 1 (BRAM), 897 Type 2 (IOB)
 		if (u32 - block0_words > 0) {
-			int bram_data_words = 4*144*XC6_FRAME_WORDS + IOB_WORDS;
-			POUT(cfg->verbose_read, ("#D block0 words: %i bram_data words: %i fdri words: %i\n",
-				block0_words, bram_data_words, u32));
-			if (u32 - block0_words != bram_data_words + 1) FAIL(EINVAL);
-			offset_in_bits = BRAM_DATA_START;
-			memcpy(&cfg->bits.d[offset_in_bits],
-				&d[src_off+block0_words*2],
-				bram_data_words*2);
-			u16 = __be16_to_cpu(*(uint16_t*)&d[
-			  (src_off+block0_words+bram_data_words)*2]);
+			//const int bram_data_words = 4*144*XC6_FRAME_WORDS; // TODO Deano need Read from model db
+			//const int iob_data_words = block2_words; // IOB_WORDS
+
+			//POUT(cfg->verbose_read, ("#D block0 words: %i bram_data words: %i fdri words: %i\n",
+			//	block0_words, bram_data_words, u32));
+			
+			// bitstream don't need to have an entire bram setup so block1_data < bram_data_words has to be handled
+			// split copy of block1 and block2 data
+			offset_in_bits = xc6_get_bram_start(die);
+			memcpy(&cfg->bits.d[offset_in_bits], &d[src_off+(block0_words*2)], block1_words*2);
+			offset_in_bits = xc6_get_iob_start(die);
+			memcpy(&cfg->bits.d[offset_in_bits], &d[src_off+(block0_words+block1_words)*2], block2_words*2);
+
+			u16 = __be16_to_cpu(*(uint16_t*)&d[src_off+(block0_words+block1_words+block2_words)*2]);
 			if (u16) {
 				if (u16 != 0xFFFF) {
 					PERR(("#E %s:%i post-bram word 0x%Xh (expected 0 or 0xFFFF).\n",
@@ -1167,6 +1279,7 @@ static int read_bits(struct fpga_config* cfg, uint8_t* d, int len,
 		cfg->auto_crc = __be32_to_cpu(*(uint32_t*)&d[src_off]);
 		src_off += 4;
 	}
+	HERE();
 	rc = EINVAL;
 fail:
 	free(cfg->bits.d);
@@ -1256,7 +1369,10 @@ static int parse_commands(struct fpga_config* cfg, uint8_t* d,
 			if (curpos + 4 > len) FAIL(EINVAL);
 			u32 = __be32_to_cpu(*(uint32_t*)&d[curpos]);
 			curpos += 4;
-			if (curpos+2*u32 > len) FAIL(EINVAL);
+			if (curpos+2*u32 > len) {
+				printf( "curpos %i u32 %i len %i\n", curpos, u32, len);
+				FAIL(EINVAL);
+			}
 			if (2*u32 < 130) FAIL(EINVAL);
 
 			cfg->reg[cfg->num_regs].reg = FDRI;
@@ -1282,13 +1398,14 @@ static int parse_commands(struct fpga_config* cfg, uint8_t* d,
 				__be32_to_cpu(*(uint32_t*)&d[u16_off+2]);
 			cfg->num_regs++;
 
-			if ((cfg->reg[cfg->idcode_reg].int_v == XC6SLX4
+/*			if ((cfg->reg[cfg->idcode_reg].int_v == XC6SLX4
 			     || cfg->reg[cfg->idcode_reg].int_v == XC6SLX9)
 			    && cfg->reg[cfg->FLR_reg].int_v != IOB_WORDS)
 				printf("#W Unexpected FLR value %i on "
 					"idcode 0x%X.\n",
 					cfg->reg[cfg->FLR_reg].int_v,
-					cfg->reg[cfg->idcode_reg].int_v);
+					cfg->reg[cfg->idcode_reg].int_v);*/
+			// TODO Check against model here
 			continue;
 		}
 		if (packet_hdr_register == FLR) {
@@ -1384,6 +1501,7 @@ static int parse_commands(struct fpga_config* cfg, uint8_t* d,
 				&d[u16_off+2+i*2]));
 		printf("\n");
 	}
+
 	return 0;
 fail:
 	return rc;
@@ -1432,10 +1550,10 @@ fail:
 static struct fpga_config_reg_rw s_defregs_before_bits[] =
 	{{ CMD,		.int_v = CMD_RCRC },
 	 { REG_NOOP },
-	 { FLR,		.int_v = 0 },  // TODO Deano IOB_WORDS from device config
+	 { FLR,		.int_v = 896 },  // TODO Deano IOB_WORDS from device config
 	 { COR1,	.int_v = COR1_DEF | COR1_CRC_BYPASS }, 
 	 { COR2,	.int_v = COR2_DEF }, 
-	 { IDCODE,	.int_v = 0 }, 
+	 { IDCODE,	.int_v = XC6SLX9 }, // TODO idcode from device config 
 	 { MASK,	.int_v = MASK_DEF }, 
 	 { CTL,		.int_v = CTL_DEF }, 
 	 { REG_NOOP }, { REG_NOOP }, { REG_NOOP }, { REG_NOOP },
@@ -1587,10 +1705,14 @@ static int write_bits(FILE* f, struct fpga_model* model)
 	uint16_t u16;
 	uint32_t u32;
 	int nwritten, i, j, rc;
-	char padding_frame[FRAME_SIZE];
+	char padding_frame[XC6_FRAME_SIZE];
+
 
 	RC_CHECK(model);
-	bits.len = IOB_DATA_START + 896*2 ; // TODO Deano based on model! values set ti slx9
+	const int padded_size = 	xc6_get_bit_end(model->die) + 
+								(model->die->num_rows * PADDING_FRAMES_PER_ROW * XC6_FRAME_SIZE);
+
+	bits.len = xc6_get_bit_end(model->die);
 	bits.d = calloc(bits.len, /*elsize*/ 1);
 	if (!bits.d) FAIL(ENOMEM);
 
@@ -1606,38 +1728,37 @@ static int write_bits(FILE* f, struct fpga_model* model)
 	nwritten = fwrite(&u16, /*size*/ 1, sizeof(u16), f);
 	if (nwritten != sizeof(u16)) FAIL(errno);
 
-	u32 = (FRAMES_DATA_LEN + NUM_ROWS*PADDING_FRAMES_PER_ROW*FRAME_SIZE
-		+ BRAM_DATA_LEN + 896*2)/2; // TODO Deano 896=IOB_WORDS
+	u32 = padded_size / 2;
 	u32++; // there is one extra 16-bit 0x0000 padding at the end
 	u32 = __cpu_to_be32(u32);
 	nwritten = fwrite(&u32, /*size*/ 1, sizeof(u32), f);
 	if (nwritten != sizeof(u32)) FAIL(errno);
 
 	// initialize padding frame to 0xFF
-	for (i = 0; i < FRAME_SIZE; i++)
+	for (i = 0; i < XC6_FRAME_SIZE; i++)
 		padding_frame[i] = 0xFF;
 
 	// write rows with padding frames
-	for (i = 0; i < NUM_ROWS; i++) {
-		nwritten = fwrite(&bits.d[i*FRAMES_PER_ROW*FRAME_SIZE],
-			/*size*/ 1, FRAMES_PER_ROW*FRAME_SIZE, f);
-		if (nwritten != FRAMES_PER_ROW*FRAME_SIZE) FAIL(errno);
+	for (i = 0; i < model->die->num_rows; i++) {
+		nwritten = fwrite(&bits.d[i*XC6_FRAMES_PER_ROW*XC6_FRAME_SIZE],
+			/*size*/ 1, XC6_FRAMES_PER_ROW*XC6_FRAME_SIZE, f);
+		if (nwritten != XC6_FRAMES_PER_ROW*XC6_FRAME_SIZE) FAIL(errno);
 		for (j = 0; j < PADDING_FRAMES_PER_ROW; j++) {
 			nwritten = fwrite(padding_frame,
-				/*size*/ 1, FRAME_SIZE, f);
-			if (nwritten != FRAME_SIZE) FAIL(errno);
+				/*size*/ 1, XC6_FRAME_SIZE, f);
+			if (nwritten != XC6_FRAME_SIZE) FAIL(errno);
 		}
 	}
 
 	// write bram data
-	nwritten = fwrite(&bits.d[BRAM_DATA_START],
-		/*size*/ 1, BRAM_DATA_LEN, f);
-	if (nwritten != BRAM_DATA_LEN) FAIL(errno);
+	nwritten = fwrite(&bits.d[xc6_get_bram_start(model->die)],
+		/*size*/ 1, xc6_get_bram_data_len(model->die), f);
+	if (nwritten != xc6_get_bram_data_len(model->die)) FAIL(errno);
 
 	// write IOB data
-	nwritten = fwrite(&bits.d[IOB_DATA_START],
-		/*size*/ 1, 896*2, f); // TODO Deano
-	if (nwritten != 896*2) FAIL(errno); // TODO Deano
+	nwritten = fwrite(&bits.d[xc6_get_iob_start(model->die)],
+		/*size*/ 1, xc6_get_iob_data_len(model->die), f);
+	if (nwritten != xc6_get_iob_data_len(model->die)) FAIL(errno);
 
 	// write extra 0x0000 padding at end of FDRI block
 	u16 = 0;

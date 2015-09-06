@@ -81,7 +81,12 @@ struct xc_t2_io_info
 struct xc_die
 {
 	int idcode;
+	int num_logical_rows;
+	int num_logical_cols;
 	int num_rows;
+	int num_cols;
+	int num_bram_in_KB;
+
 	const char* left_wiring;
 	const char* right_wiring;
 	const char* major_str;
@@ -132,20 +137,9 @@ const char *xc6_find_pkg_pin(const struct xc6_pkg_info *pkg_info, const char *de
 
 #define XC6_FRAME_WORDS		65
 #define XC6_WORD_BYTES		2
-#define FRAME_SIZE		(XC6_FRAME_WORDS*XC6_WORD_BYTES)
-#define FRAMES_PER_ROW		505 // for slx4 and slx9
+#define XC6_FRAME_SIZE		(XC6_FRAME_WORDS*XC6_WORD_BYTES)
+#define XC6_FRAMES_PER_ROW		505 // for slx4 and slx9
 #define PADDING_FRAMES_PER_ROW	2
-#define NUM_ROWS		4 // for slx9 and slx9
-
-#define FRAMES_DATA_START	0
-#define FRAMES_DATA_LEN		(NUM_ROWS*FRAMES_PER_ROW*FRAME_SIZE)
-#define BRAM_DATA_START		FRAMES_DATA_LEN
-#define BRAM_DATA_LEN		(4*144*FRAME_SIZE)
-#define IOB_DATA_START		(BRAM_DATA_START + BRAM_DATA_LEN)
-#define IOB_WORDS		(cfg->reg[cfg->FLR_reg].int_v) // 16-bit words, for slx4 and slx9
-#define IOB_DATA_LEN		(IOB_WORDS*2)
-#define IOB_ENTRY_LEN		8
-#define BITS_LEN		(IOB_DATA_START+IOB_DATA_LEN)
 
 #define XC6_WORD_BYTES		2
 #define XC6_WORD_BITS		(XC6_WORD_BYTES*8)
@@ -158,6 +152,41 @@ const char *xc6_find_pkg_pin(const struct xc6_pkg_info *pkg_info, const char *de
 #define XC6_HCLK_GCLK_DOWN_PIN	1
 
 #define XC6_NULL_MAJOR		0
+#define IOB_ENTRY_LEN		(4 * XC6_WORD_BYTES)
+
+
+// NOTE: these 3 get functions are the HW lengths not the bitstream lengths
+inline uint32_t xc6_get_frame_data_len( const struct xc_die* die )
+{
+	return die->num_rows * XC6_FRAMES_PER_ROW * XC6_FRAME_SIZE;
+}
+
+inline uint32_t xc6_get_bram_data_len( const struct xc_die* die )
+{
+	return die->num_bram_in_KB * XC6_FRAME_SIZE;
+}
+
+inline uint32_t xc6_get_iob_data_len( const struct xc_die* die )
+{
+	return die->num_t2_ios * IOB_ENTRY_LEN;
+}
+
+inline uint32_t xc6_get_frame_start( const struct xc_die* die )
+{
+	return 0;
+}
+inline uint32_t xc6_get_bram_start( const struct xc_die* die )
+{
+	return xc6_get_frame_start(die) + xc6_get_frame_data_len(die); 
+}
+inline uint32_t xc6_get_iob_start( const struct xc_die* die )
+{
+	return xc6_get_bram_start(die) + xc6_get_bram_data_len(die);
+}
+inline uint32_t xc6_get_bit_end( const struct xc_die* die )
+{
+	return xc6_get_iob_start(die) + xc6_get_iob_data_len(die);
+}
 
 #define XC6_IOB_MASK_IO				0x00FF00FFFF000000
 #define XC6_IOB_MASK_IN_TYPE			0x000000000000F000

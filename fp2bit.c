@@ -58,8 +58,15 @@ int main(int argc, char** argv)
 	if ((rc = fpga_build_model(&model, XC6SLX9, TQG144)))
 		goto fail;
 
-	if ((rc = read_floorplan(&model, fp))) goto fail;
-	if ((rc = write_bitfile(fbits, &model))) goto fail;
+	if ((rc = read_floorplan(&model, fp))) {
+		fprintf(stderr, "Error reading floorplan.\n");
+		goto fail;
+	}
+	if ((rc = write_bitfile(fbits, &model))) {
+		fprintf(stderr, "Error writing bitfile.\n");
+		goto fail;
+	}
+	
 	fclose(fp);
 	fclose(fbits);
 	return EXIT_SUCCESS;

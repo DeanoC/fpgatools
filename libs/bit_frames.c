@@ -21,28 +21,28 @@ static uint8_t* get_first_minor(struct fpga_bits* bits, int row, int major)
 	num_frames = 0;
 	for (i = 0; i < major; i++)
 		num_frames += get_major_minors(XC6SLX9, i);
-	return &bits->d[(row*FRAMES_PER_ROW + num_frames)*FRAME_SIZE];
+	return &bits->d[(row*XC6_FRAMES_PER_ROW + num_frames)*XC6_FRAME_SIZE];
 }
 
 static int get_bit(struct fpga_bits* bits,
 	int row, int major, int minor, int bit_i)
 {
 	return frame_get_bit(get_first_minor(bits, row, major)
-		+ minor*FRAME_SIZE, bit_i);
+		+ minor*XC6_FRAME_SIZE, bit_i);
 }
 
 static void set_bit(struct fpga_bits* bits,
 	int row, int major, int minor, int bit_i)
 {
 	return frame_set_bit(get_first_minor(bits, row, major)
-		+ minor*FRAME_SIZE, bit_i);
+		+ minor*XC6_FRAME_SIZE, bit_i);
 }
 
 static void clear_bit(struct fpga_bits* bits,
 	int row, int major, int minor, int bit_i)
 {
 	return frame_clear_bit(get_first_minor(bits, row, major)
-		+ minor*FRAME_SIZE, bit_i);
+		+ minor*XC6_FRAME_SIZE, bit_i);
 }
 
 struct bit_pos
@@ -116,6 +116,7 @@ static int write_type2(struct fpga_bits* bits, struct fpga_model* model)
 	int y, x, type_idx, t2_idx, first_iob, rc;
 	struct fpga_device* dev;
 	uint64_t u64;
+	const struct xc_die* die = model->die;
 
 	RC_CHECK(model);
 	first_iob = 0;
@@ -129,6 +130,7 @@ static int write_type2(struct fpga_bits* bits, struct fpga_model* model)
 		RC_ASSERT(model, dev);
 		if (!dev->instantiated)
 			continue;
+
 
 		if (!first_iob) {
 			first_iob = 1;
@@ -165,7 +167,7 @@ static int write_type2(struct fpga_bits* bits, struct fpga_model* model)
 			else
 				HERE();
 
-			frame_set_u64(&bits->d[IOB_DATA_START
+			frame_set_u64(&bits->d[xc6_get_iob_start(die)
 				+ t2_idx*IOB_ENTRY_LEN], u64);
 		} else if (dev->u.iob.ostandard[0]) {
 			if (!dev->u.iob.drive_strength
@@ -261,7 +263,7 @@ static int write_type2(struct fpga_bits* bits, struct fpga_model* model)
 				default: FAIL(EINVAL);
 			}
 
-			frame_set_u64(&bits->d[IOB_DATA_START
+			frame_set_u64(&bits->d[xc6_get_iob_start(die)
 				+ t2_idx*IOB_ENTRY_LEN], u64);
 		} else HERE();
 	}
@@ -278,12 +280,14 @@ static int extract_iobs(struct extract_state* es)
 	struct fpgadev_iob cfg;
 
 	RC_CHECK(es->model);
+	const struct xc_die* die = es->model->die;
+
 	first_iob = 0;
 	for (i = 0; i < es->model->die->num_t2_ios; i++) {
 		if (!es->model->die->t2_io[i].pair)
 			continue;
 		u64 = frame_get_u64(&es->bits->d[
-			IOB_DATA_START + i*IOB_ENTRY_LEN]);
+			xc6_get_iob_start(die) + i*IOB_ENTRY_LEN]);
 		if (!u64) continue;
 
 		iob_y = es->model->die->t2_io[i].y;
@@ -291,6 +295,8 @@ static int extract_iobs(struct extract_state* es)
 		iob_type_idx = es->model->die->t2_io[i].type_idx;
 		dev = fdev_p(es->model, iob_y, iob_x, DEV_IOB, iob_type_idx);
 		RC_ASSERT(es->model, dev);
+
+		POUT(1, ("#D iob_y %i iob_x %i iob_type_idx %i u64 %ULL\n", iob_y, iob_x, iob_type_idx, u64));
 
 		memset(&cfg, 0, sizeof(cfg));
 
@@ -556,7 +562,7 @@ static int extract_iobs(struct extract_state* es)
 			}
 		}
 		if (!u64) {
-			frame_set_u64(&es->bits->d[IOB_DATA_START
+			frame_set_u64(&es->bits->d[xc6_get_iob_start(die)
 				+ i*IOB_ENTRY_LEN], 0);
 			if (dev->instantiated) HERE();
 			dev->instantiated = 1;
@@ -572,10 +578,11 @@ static int extract_type2(struct extract_state* es)
 	uint16_t u16;
 
 	RC_CHECK(es->model);
+	const struct xc_die* die = es->model->die;
 	extract_iobs(es);
-	for (gclk_i = 0; gclk_i < es->model->die->num_gclk_pins; gclk_i++) {
-		bits_off = IOB_DATA_START
-			+ es->model->die->gclk_t2_switches[gclk_i]*XC6_WORD_BYTES
+	for (gclk_i = 0; gclk_i < die->num_gclk_pins; gclk_i++) {
+		bits_off = xc6_get_iob_start(die)
+			+ die->gclk_t2_switches[gclk_i]*XC6_WORD_BYTES
 			+ XC6_TYPE2_GCLK_REG_SW/XC6_WORD_BITS;
 		u16 = frame_get_u16(&es->bits->d[bits_off]);
 		if (!u16)
@@ -595,10 +602,10 @@ static int extract_type2(struct extract_state* es)
 			// the writing equivalent is in write_inner_term_sw()
 			//
 
-			t2_io_idx = es->model->die->gclk_t2_io_idx[gclk_i];
-			iob_y = es->model->die->t2_io[t2_io_idx].y;
-			iob_x = es->model->die->t2_io[t2_io_idx].x;
-			iob_type_idx = es->model->die->t2_io[t2_io_idx].type_idx;
+			t2_io_idx = die->gclk_t2_io_idx[gclk_i];
+			iob_y = die->t2_io[t2_io_idx].y;
+			iob_x = die->t2_io[t2_io_idx].x;
+			iob_type_idx = die->t2_io[t2_io_idx].type_idx;
 			iob_dev = fdev_p(es->model, iob_y, iob_x, DEV_IOB, iob_type_idx);
 			RC_ASSERT(es->model, iob_dev);
 
@@ -699,47 +706,47 @@ static int extract_logic(struct extract_state* es)
 			// into local variables
 			//
 
-			mi20 = frame_get_u64(u8_p + 20*FRAME_SIZE + byte_off) & XC6_MI20_LOGIC_MASK;
+			mi20 = frame_get_u64(u8_p + 20*XC6_FRAME_SIZE + byte_off) & XC6_MI20_LOGIC_MASK;
 			if (has_device_type(es->model, y, x, DEV_LOGIC, LOGIC_M)) {
-				mi23_M = frame_get_u64(u8_p + 23*FRAME_SIZE + byte_off);
-				mi2526 = frame_get_u64(u8_p + 26*FRAME_SIZE + byte_off);
+				mi23_M = frame_get_u64(u8_p + 23*XC6_FRAME_SIZE + byte_off);
+				mi2526 = frame_get_u64(u8_p + 26*XC6_FRAME_SIZE + byte_off);
 
 				lut_ML[LUT_A] = frame_get_lut64(XC6_LMAP_XM_M_A,
-					u8_p + 24*FRAME_SIZE, row_pos*4+2);
+					u8_p + 24*XC6_FRAME_SIZE, row_pos*4+2);
 				lut_ML[LUT_B] = frame_get_lut64(XC6_LMAP_XM_M_B,
-					u8_p + 21*FRAME_SIZE, row_pos*4+2);
+					u8_p + 21*XC6_FRAME_SIZE, row_pos*4+2);
 				lut_ML[LUT_C] = frame_get_lut64(XC6_LMAP_XM_M_C,
-					u8_p + 24*FRAME_SIZE, row_pos*4);
+					u8_p + 24*XC6_FRAME_SIZE, row_pos*4);
 				lut_ML[LUT_D] = frame_get_lut64(XC6_LMAP_XM_M_D,
-					u8_p + 21*FRAME_SIZE, row_pos*4);
+					u8_p + 21*XC6_FRAME_SIZE, row_pos*4);
 				lut_X[LUT_A] = frame_get_lut64(XC6_LMAP_XM_X_A,
-					u8_p + 27*FRAME_SIZE, row_pos*4+2);
+					u8_p + 27*XC6_FRAME_SIZE, row_pos*4+2);
 				lut_X[LUT_B] = frame_get_lut64(XC6_LMAP_XM_X_B,
-					u8_p + 29*FRAME_SIZE, row_pos*4+2);
+					u8_p + 29*XC6_FRAME_SIZE, row_pos*4+2);
 				lut_X[LUT_C] = frame_get_lut64(XC6_LMAP_XM_X_C,
-					u8_p + 27*FRAME_SIZE, row_pos*4);
+					u8_p + 27*XC6_FRAME_SIZE, row_pos*4);
 				lut_X[LUT_D] = frame_get_lut64(XC6_LMAP_XM_X_D,
-					u8_p + 29*FRAME_SIZE, row_pos*4);
+					u8_p + 29*XC6_FRAME_SIZE, row_pos*4);
 				l_col = 0;
 			} else if (has_device_type(es->model, y, x, DEV_LOGIC, LOGIC_L)) {
 				mi23_M = 0;
-				mi2526 = frame_get_u64(u8_p + 25*FRAME_SIZE + byte_off);
+				mi2526 = frame_get_u64(u8_p + 25*XC6_FRAME_SIZE + byte_off);
 				lut_ML[LUT_A] = frame_get_lut64(XC6_LMAP_XL_L_A,
-					u8_p + 23*FRAME_SIZE, row_pos*4+2);
+					u8_p + 23*XC6_FRAME_SIZE, row_pos*4+2);
 				lut_ML[LUT_B] = frame_get_lut64(XC6_LMAP_XL_L_B,
-					u8_p + 21*FRAME_SIZE, row_pos*4+2);
+					u8_p + 21*XC6_FRAME_SIZE, row_pos*4+2);
 				lut_ML[LUT_C] = frame_get_lut64(XC6_LMAP_XL_L_C,
-					u8_p + 23*FRAME_SIZE, row_pos*4);
+					u8_p + 23*XC6_FRAME_SIZE, row_pos*4);
 				lut_ML[LUT_D] = frame_get_lut64(XC6_LMAP_XL_L_D,
-					u8_p + 21*FRAME_SIZE, row_pos*4);
+					u8_p + 21*XC6_FRAME_SIZE, row_pos*4);
 				lut_X[LUT_A] = frame_get_lut64(XC6_LMAP_XL_X_A,
-					u8_p + 26*FRAME_SIZE, row_pos*4+2);
+					u8_p + 26*XC6_FRAME_SIZE, row_pos*4+2);
 				lut_X[LUT_B] = frame_get_lut64(XC6_LMAP_XL_X_B,
-					u8_p + 28*FRAME_SIZE, row_pos*4+2);
+					u8_p + 28*XC6_FRAME_SIZE, row_pos*4+2);
 				lut_X[LUT_C] = frame_get_lut64(XC6_LMAP_XL_X_C,
-					u8_p + 26*FRAME_SIZE, row_pos*4);
+					u8_p + 26*XC6_FRAME_SIZE, row_pos*4);
 				lut_X[LUT_D] = frame_get_lut64(XC6_LMAP_XL_X_D,
-					u8_p + 28*FRAME_SIZE, row_pos*4);
+					u8_p + 28*XC6_FRAME_SIZE, row_pos*4);
 				l_col = 1;
 			} else {
 				HERE();
@@ -1507,12 +1514,12 @@ static int extract_logic(struct extract_state* es)
 			// Remove all bits.
 			//
 
-			frame_set_u64(u8_p + 20*FRAME_SIZE + byte_off,
-				frame_get_u64(u8_p + 20*FRAME_SIZE + byte_off)
+			frame_set_u64(u8_p + 20*XC6_FRAME_SIZE + byte_off,
+				frame_get_u64(u8_p + 20*XC6_FRAME_SIZE + byte_off)
 					& ~XC6_MI20_LOGIC_MASK);
 			last_minor = l_col ? 29 : 30;
 			for (i = 21; i <= last_minor; i++)
-				frame_set_u64(u8_p + i*FRAME_SIZE + byte_off, 0);
+				frame_set_u64(u8_p + i*XC6_FRAME_SIZE + byte_off, 0);
 			if (cfg_ml.a2d[LUT_A].ram_mode
 			    || cfg_ml.a2d[LUT_B].ram_mode
 			    || cfg_ml.a2d[LUT_C].ram_mode
@@ -1522,14 +1529,14 @@ static int extract_logic(struct extract_state* es)
 				// check whether all 4 clock bits in minors 16-19 are on
 				for (i = XC6_ROW_RAM_MI16; i <= XC6_ROW_RAM_MI19; i++) {
 					clock_word[i-XC6_ROW_RAM_MI16] =
-						frame_get_pinword(u8_p + i*FRAME_SIZE + XC6_HCLK_POS);
+						frame_get_pinword(u8_p + i*XC6_FRAME_SIZE + XC6_HCLK_POS);
 					if (!(clock_word[i-XC6_ROW_RAM_MI16] & (1<<XC6_ROW_RAM_ENABLE_CLOCK_PIN)))
 						break;
 				}
 				// if they are all on, clear them
 				if (i > XC6_ROW_RAM_MI19) {
 					for (i = XC6_ROW_RAM_MI16; i <= XC6_ROW_RAM_MI19; i++) {
-						frame_set_pinword(u8_p + i*FRAME_SIZE + XC6_HCLK_POS,
+						frame_set_pinword(u8_p + i*XC6_FRAME_SIZE + XC6_HCLK_POS,
 						clock_word[i-XC6_ROW_RAM_MI16] & ~(1<<XC6_ROW_RAM_ENABLE_CLOCK_PIN));
 					}
 				}
@@ -1750,7 +1757,7 @@ static int extract_logic_switches(struct extract_state* es, int y, int x)
 	else
 		FAIL(EINVAL);
 
-	if (frame_get_bit(u8_p + minor*FRAME_SIZE, byte_off*8 + XC6_ML_CIN_USED)) {
+	if (frame_get_bit(u8_p + minor*XC6_FRAME_SIZE, byte_off*8 + XC6_ML_CIN_USED)) {
 		struct fpga_device* dev;
 		int cout_y, cout_x;
 		str16_t cout_str;
@@ -1781,7 +1788,7 @@ static int extract_logic_switches(struct extract_state* es, int y, int x)
 		es->yx_pos[es->num_yx_pos].idx = cout_sw;
 		es->num_yx_pos++;
 
-		frame_clear_bit(u8_p + minor*FRAME_SIZE,
+		frame_clear_bit(u8_p + minor*XC6_FRAME_SIZE,
 			byte_off*8 + XC6_ML_CIN_USED);
 	}
 	return 0;
@@ -1949,7 +1956,7 @@ static int extract_iologic_switches(struct extract_state* es, int y, int x)
 	for (i = 0; sw_pos[i].to[0]; i++) {
 		for (j = 0; sw_pos[i].minor[j] != -1; j++) {
 			if (!frame_get_bit(&minor0_p[sw_pos[i].minor[j]
-				*FRAME_SIZE], bit_in_frame+sw_pos[i].b64[j]))
+				*XC6_FRAME_SIZE], bit_in_frame+sw_pos[i].b64[j]))
 				break;
 		}
 		if (!j || sw_pos[i].minor[j] != -1)
@@ -1960,7 +1967,7 @@ static int extract_iologic_switches(struct extract_state* es, int y, int x)
 				fpga_iologic_wire2str_yx(es->model, sw_pos[i].to[j], y, x));
 		for (j = 0; sw_pos[i].minor[j] != -1; j++)
 			frame_clear_bit(&minor0_p[sw_pos[i].minor[j]
-			  *FRAME_SIZE], bit_in_frame+sw_pos[i].b64[j]);
+			  *XC6_FRAME_SIZE], bit_in_frame+sw_pos[i].b64[j]);
 	}
 	// todo: we could implement an all-or-nothing system where
 	//       the device bits are first copied into an u64 array,
@@ -1980,7 +1987,7 @@ static int extract_center_switches(struct extract_state *es)
 	center_row = es->model->die->num_rows/2;
 	center_major = xc_die_center_major(es->model->die);
 	minor_p = get_first_minor(es->bits, center_row,
-		center_major) + XC6_CENTER_GCLK_MINOR*FRAME_SIZE;
+		center_major) + XC6_CENTER_GCLK_MINOR*XC6_FRAME_SIZE;
 	word = frame_get_pinword(minor_p + 15*8+XC6_HCLK_BYTES);
 	if (word) {
 		for (i = 0; i < 16; i++) {
@@ -2018,7 +2025,7 @@ static int write_center_sw(struct fpga_bits *bits,
 	center_row = model->die->num_rows/2;
 	center_major = xc_die_center_major(model->die);
 	minor_p = get_first_minor(bits, center_row,
-		center_major) + XC6_CENTER_GCLK_MINOR*FRAME_SIZE;
+		center_major) + XC6_CENTER_GCLK_MINOR*XC6_FRAME_SIZE;
 
 	tile = YX_TILE(model, y, x);
 	for (i = 0; i < tile->num_switches; i++) {
@@ -2071,7 +2078,7 @@ static int extract_gclk_center_vert_sw(struct extract_state *es)
 		ma0_bits = get_first_minor(es->bits, cur_row, XC6_NULL_MAJOR);
 		for (cur_minor = 0; cur_minor <= 2; cur_minor++) {
 			// left
-			word = frame_get_pinword(ma0_bits + cur_minor*FRAME_SIZE + 8*8+XC6_HCLK_BYTES);
+			word = frame_get_pinword(ma0_bits + cur_minor*XC6_FRAME_SIZE + 8*8+XC6_HCLK_BYTES);
 			if (word) {
 				for (i = 0; i <= 16/3; i++) { // 0-5
 					cur_pin = cur_minor + i*3;
@@ -2083,10 +2090,10 @@ static int extract_gclk_center_vert_sw(struct extract_state *es)
 					word &= ~(1<<cur_pin);
 				}
 				if (word) HERE();
-				frame_set_pinword(ma0_bits + cur_minor*FRAME_SIZE + 8*8+XC6_HCLK_BYTES, word);
+				frame_set_pinword(ma0_bits + cur_minor*XC6_FRAME_SIZE + 8*8+XC6_HCLK_BYTES, word);
 			}
 			// right
-			word = frame_get_pinword(ma0_bits + cur_minor*FRAME_SIZE + 8*8+XC6_HCLK_BYTES + 4);
+			word = frame_get_pinword(ma0_bits + cur_minor*XC6_FRAME_SIZE + 8*8+XC6_HCLK_BYTES + 4);
 			if (word) {
 				for (i = 0; i <= 16/3; i++) { // 0-5
 					cur_pin = cur_minor + i*3;
@@ -2098,7 +2105,7 @@ static int extract_gclk_center_vert_sw(struct extract_state *es)
 					word &= ~(1<<cur_pin);
 				}
 				if (word) HERE();
-				frame_set_pinword(ma0_bits + cur_minor*FRAME_SIZE + 8*8+XC6_HCLK_BYTES + 4, word);
+				frame_set_pinword(ma0_bits + cur_minor*XC6_FRAME_SIZE + 8*8+XC6_HCLK_BYTES + 4, word);
 			}
 		}
 	}
@@ -2144,9 +2151,9 @@ static int write_gclk_center_vert_sw(struct fpga_bits *bits,
 				}
 			}
 			if (minor_found != -1) {
-				word = frame_get_pinword(ma0_bits + minor_found*FRAME_SIZE + 8*8+XC6_HCLK_BYTES);
+				word = frame_get_pinword(ma0_bits + minor_found*XC6_FRAME_SIZE + 8*8+XC6_HCLK_BYTES);
 				word |= 1 << gclk_pin_from;
-				frame_set_pinword(ma0_bits + minor_found*FRAME_SIZE + 8*8+XC6_HCLK_BYTES, word);
+				frame_set_pinword(ma0_bits + minor_found*XC6_FRAME_SIZE + 8*8+XC6_HCLK_BYTES, word);
 				continue;
 			}
 			HERE(); // fall-through to unsupported
@@ -2169,9 +2176,9 @@ static int write_gclk_center_vert_sw(struct fpga_bits *bits,
 				}
 			}
 			if (minor_found != -1) {
-				word = frame_get_pinword(ma0_bits + minor_found*FRAME_SIZE + 8*8+XC6_HCLK_BYTES + 4);
+				word = frame_get_pinword(ma0_bits + minor_found*XC6_FRAME_SIZE + 8*8+XC6_HCLK_BYTES + 4);
 				word |= 1 << gclk_pin_from;
-				frame_set_pinword(ma0_bits + minor_found*FRAME_SIZE + 8*8+XC6_HCLK_BYTES + 4, word);
+				frame_set_pinword(ma0_bits + minor_found*XC6_FRAME_SIZE + 8*8+XC6_HCLK_BYTES + 4, word);
 				continue;
 			}
 			HERE(); // fall-through to unsupported
@@ -2207,7 +2214,7 @@ static int extract_gclk_hclk_updown_sw(struct extract_state *es)
 			// each minor (0:15) stores the configuration bits for one gclk
 			// pin (in the hclk bytes of the minor)
 			for (gclk_pin = 0; gclk_pin <= 15; gclk_pin++) {
-				word = frame_get_pinword(mi0_bits + gclk_pin*FRAME_SIZE + XC6_HCLK_POS);
+				word = frame_get_pinword(mi0_bits + gclk_pin*XC6_FRAME_SIZE + XC6_HCLK_POS);
 				if (word & (1<<XC6_HCLK_GCLK_UP_PIN)) {
 					add_yx_switch(es, hclk_y, x,
 						pf("HCLK_GCLK%i_INT", gclk_pin),
@@ -2221,7 +2228,7 @@ static int extract_gclk_hclk_updown_sw(struct extract_state *es)
 					word &= ~(1<<XC6_HCLK_GCLK_DOWN_PIN);
 				}
 				if (word) HERE();
-				frame_set_pinword(mi0_bits + gclk_pin*FRAME_SIZE + XC6_HCLK_POS, word);
+				frame_set_pinword(mi0_bits + gclk_pin*XC6_FRAME_SIZE + XC6_HCLK_POS, word);
 			}
 		}
 	}
@@ -2260,9 +2267,9 @@ static int write_hclk_sw(struct fpga_bits *bits, struct fpga_model *model,
 		}
 		RC_ASSERT(model, gclk_pin_from == gclk_pin_to);
 
-		word = frame_get_pinword(mi0_bits + gclk_pin_from*FRAME_SIZE + XC6_HCLK_POS);
+		word = frame_get_pinword(mi0_bits + gclk_pin_from*XC6_FRAME_SIZE + XC6_HCLK_POS);
 		word |= 1 << (up ? XC6_HCLK_GCLK_UP_PIN : XC6_HCLK_GCLK_DOWN_PIN);
-		frame_set_pinword(mi0_bits + gclk_pin_from*FRAME_SIZE + XC6_HCLK_POS, word);
+		frame_set_pinword(mi0_bits + gclk_pin_from*XC6_FRAME_SIZE + XC6_HCLK_POS, word);
 	}
 	RC_RETURN(model);
 }
@@ -2333,7 +2340,7 @@ static int extract_bscan(struct extract_state *es)
 
 		u8_p = get_first_minor(es->bits, which_row(bscan_y, es->model), es->model->x_major[bscan_x]);
 		RC_ASSERT(es->model, u8_p);
-		pinword = frame_get_pinword(u8_p + XC6_BSCAN_MINOR*FRAME_SIZE + XC6_BSCAN_WORD*XC6_WORD_BYTES);
+		pinword = frame_get_pinword(u8_p + XC6_BSCAN_MINOR*XC6_FRAME_SIZE + XC6_BSCAN_WORD*XC6_WORD_BYTES);
 
 		if (!(pinword & (1 << ((bscan_y - TOP_IO_TILES)*2 + bscan_type_idx))))
 			continue;
@@ -2360,7 +2367,7 @@ static int extract_bscan(struct extract_state *es)
 		fdev_bscan(es->model, bscan_y, bscan_x, bscan_type_idx,
 			jtag_chain, jtag_test);
 		RC_CHECK(es->model);
-		frame_set_pinword(u8_p + XC6_BSCAN_MINOR*FRAME_SIZE + XC6_BSCAN_WORD*XC6_WORD_BYTES, 0);
+		frame_set_pinword(u8_p + XC6_BSCAN_MINOR*XC6_FRAME_SIZE + XC6_BSCAN_WORD*XC6_WORD_BYTES, 0);
 	}
 	RC_RETURN(es->model);
 }
@@ -2381,14 +2388,14 @@ static int write_bscan(struct fpga_bits *bits, struct fpga_model *model)
 
 		u8_p = get_first_minor(bits, which_row(bscan_y, model), model->x_major[bscan_x]);
 		RC_ASSERT(model, u8_p);
-		pinword = frame_get_pinword(u8_p + XC6_BSCAN_MINOR*FRAME_SIZE + XC6_BSCAN_WORD*XC6_WORD_BYTES);
+		pinword = frame_get_pinword(u8_p + XC6_BSCAN_MINOR*XC6_FRAME_SIZE + XC6_BSCAN_WORD*XC6_WORD_BYTES);
 
 		if (bscan_y == TOP_IO_TILES && !bscan_type_idx
 		    && dev->u.bscan.jtag_test == BSCAN_JTAG_TEST_Y)
 			pinword |= 1 << XC6_BSCAN_TEST_PIN;
 		pinword |= 1 << ((bscan_y - TOP_IO_TILES)*2 + bscan_type_idx);
 
-		frame_set_pinword(u8_p + XC6_BSCAN_MINOR*FRAME_SIZE + XC6_BSCAN_WORD*XC6_WORD_BYTES, pinword);
+		frame_set_pinword(u8_p + XC6_BSCAN_MINOR*XC6_FRAME_SIZE + XC6_BSCAN_WORD*XC6_WORD_BYTES, pinword);
 	}
 	RC_RETURN(model);
 }
@@ -2616,7 +2623,7 @@ void bram_extract_init(bram_init_t *init, const uint8_t *bits);
 		for (i = XC6_BRAM16_DEVS_PER_ROW-1; i >= 0; i--) {
 			printf_ramb_data(&cfg->bits.d[BRAM_DATA_START
 				+ (row*XC6_BRAM16_DEVS_PER_ROW+i)
-				  *XC6_BRAM_DATA_FRAMES_PER_DEV*FRAME_SIZE],
+				  *XC6_BRAM_DATA_FRAMES_PER_DEV*XC6_FRAME_SIZE],
 				row, i);
 		}
 	}
@@ -2899,6 +2906,7 @@ static int write_inner_term_sw(struct fpga_bits *bits,
 	int i, j, from_idx, to_idx;
 
 	RC_CHECK(model);
+	const struct xc_die* die = model->die;
 
 	tile = YX_TILE(model, y, x);
 	for (i = 0; i < tile->num_switches; i++) {
@@ -2953,12 +2961,12 @@ static int write_inner_term_sw(struct fpga_bits *bits,
 					break;
 			}
 			// set bit
-			if (j < model->die->num_gclk_pins) {
+			if (j < die->num_gclk_pins) {
 				uint16_t u16;
 				int bits_off;
 
-				bits_off = IOB_DATA_START
-					+ model->die->gclk_t2_switches[j]*XC6_WORD_BYTES
+				bits_off = xc6_get_iob_start(die)
+					+ die->gclk_t2_switches[j]*XC6_WORD_BYTES
 					+ XC6_TYPE2_GCLK_REG_SW/XC6_WORD_BITS;
 				u16 = frame_get_u16(&bits->d[bits_off]);
 				u16 |= 1<<(XC6_TYPE2_GCLK_REG_SW%XC6_WORD_BITS);
@@ -3009,7 +3017,7 @@ static int write_logic_sw(struct fpga_bits *bits,
 			byte_off = row_pos * 8;
 			if (row_pos >= 8) byte_off += XC6_HCLK_BYTES;
 
-			frame_off = (xm_col?26:25)*FRAME_SIZE + byte_off;
+			frame_off = (xm_col?26:25)*XC6_FRAME_SIZE + byte_off;
 			mi2526 = frame_get_u64(u8_p + frame_off);
 			RC_ASSERT(model, !(mi2526 & (1ULL << XC6_ML_CIN_USED)));
 			mi2526 |= 1ULL << XC6_ML_CIN_USED;
@@ -3133,45 +3141,45 @@ static int write_logic(struct fpga_bits* bits, struct fpga_model* model)
 			// 1) check current bits
 			//
 
-			mi20 = frame_get_u64(u8_p + 20*FRAME_SIZE + byte_off) & XC6_MI20_LOGIC_MASK;
+			mi20 = frame_get_u64(u8_p + 20*XC6_FRAME_SIZE + byte_off) & XC6_MI20_LOGIC_MASK;
 			if (xm_col) {
-				mi23_M = frame_get_u64(u8_p + 23*FRAME_SIZE + byte_off);
-				mi2526 = frame_get_u64(u8_p + 26*FRAME_SIZE + byte_off);
+				mi23_M = frame_get_u64(u8_p + 23*XC6_FRAME_SIZE + byte_off);
+				mi2526 = frame_get_u64(u8_p + 26*XC6_FRAME_SIZE + byte_off);
 				lut_ML[LUT_A] = frame_get_lut64(XC6_LMAP_XM_M_A,
-					u8_p + 24*FRAME_SIZE, row_pos*4+2);
+					u8_p + 24*XC6_FRAME_SIZE, row_pos*4+2);
 				lut_ML[LUT_B] = frame_get_lut64(XC6_LMAP_XM_M_B,
-					u8_p + 21*FRAME_SIZE, row_pos*4+2);
+					u8_p + 21*XC6_FRAME_SIZE, row_pos*4+2);
 				lut_ML[LUT_C] = frame_get_lut64(XC6_LMAP_XM_M_C,
-					u8_p + 24*FRAME_SIZE, row_pos*4);
+					u8_p + 24*XC6_FRAME_SIZE, row_pos*4);
 				lut_ML[LUT_D] = frame_get_lut64(XC6_LMAP_XM_M_D,
-					u8_p + 21*FRAME_SIZE, row_pos*4);
+					u8_p + 21*XC6_FRAME_SIZE, row_pos*4);
 				lut_X[LUT_A] = frame_get_lut64(XC6_LMAP_XM_X_A,
-					u8_p + 27*FRAME_SIZE, row_pos*4+2);
+					u8_p + 27*XC6_FRAME_SIZE, row_pos*4+2);
 				lut_X[LUT_B] = frame_get_lut64(XC6_LMAP_XM_X_B,
-					u8_p + 29*FRAME_SIZE, row_pos*4+2);
+					u8_p + 29*XC6_FRAME_SIZE, row_pos*4+2);
 				lut_X[LUT_C] = frame_get_lut64(XC6_LMAP_XM_X_C,
-					u8_p + 27*FRAME_SIZE, row_pos*4);
+					u8_p + 27*XC6_FRAME_SIZE, row_pos*4);
 				lut_X[LUT_D] = frame_get_lut64(XC6_LMAP_XM_X_D,
-					u8_p + 29*FRAME_SIZE, row_pos*4);
+					u8_p + 29*XC6_FRAME_SIZE, row_pos*4);
 			} else { // xl
 				mi23_M = 0;
-				mi2526 = frame_get_u64(u8_p + 25*FRAME_SIZE + byte_off);
+				mi2526 = frame_get_u64(u8_p + 25*XC6_FRAME_SIZE + byte_off);
 				lut_ML[LUT_A] = frame_get_lut64(XC6_LMAP_XL_L_A,
-					u8_p + 23*FRAME_SIZE, row_pos*4+2);
+					u8_p + 23*XC6_FRAME_SIZE, row_pos*4+2);
 				lut_ML[LUT_B] = frame_get_lut64(XC6_LMAP_XL_L_B,
-					u8_p + 21*FRAME_SIZE, row_pos*4+2);
+					u8_p + 21*XC6_FRAME_SIZE, row_pos*4+2);
 				lut_ML[LUT_C] = frame_get_lut64(XC6_LMAP_XL_L_C,
-					u8_p + 23*FRAME_SIZE, row_pos*4);
+					u8_p + 23*XC6_FRAME_SIZE, row_pos*4);
 				lut_ML[LUT_D] = frame_get_lut64(XC6_LMAP_XL_L_D,
-					u8_p + 21*FRAME_SIZE, row_pos*4);
+					u8_p + 21*XC6_FRAME_SIZE, row_pos*4);
 				lut_X[LUT_A] = frame_get_lut64(XC6_LMAP_XL_X_A,
-					u8_p + 26*FRAME_SIZE, row_pos*4+2);
+					u8_p + 26*XC6_FRAME_SIZE, row_pos*4+2);
 				lut_X[LUT_B] = frame_get_lut64(XC6_LMAP_XL_X_B,
-					u8_p + 28*FRAME_SIZE, row_pos*4+2);
+					u8_p + 28*XC6_FRAME_SIZE, row_pos*4+2);
 				lut_X[LUT_C] = frame_get_lut64(XC6_LMAP_XL_X_C,
-					u8_p + 26*FRAME_SIZE, row_pos*4);
+					u8_p + 26*XC6_FRAME_SIZE, row_pos*4);
 				lut_X[LUT_D] = frame_get_lut64(XC6_LMAP_XL_X_D,
-					u8_p + 28*FRAME_SIZE, row_pos*4);
+					u8_p + 28*XC6_FRAME_SIZE, row_pos*4);
 			}
 			// Except for XC6_ML_CIN_USED (which is set by a switch elsewhere),
 			// everything else should be 0.
@@ -3389,32 +3397,32 @@ static int write_logic(struct fpga_bits* bits, struct fpga_model* model)
 
 			// logic devs occupy only some bits in mi20, so we merge
 			// with the others (switches).
-			frame_set_u64(u8_p + 20*FRAME_SIZE + byte_off,
-				(frame_get_u64(u8_p + 20*FRAME_SIZE + byte_off) & ~XC6_MI20_LOGIC_MASK)
+			frame_set_u64(u8_p + 20*XC6_FRAME_SIZE + byte_off,
+				(frame_get_u64(u8_p + 20*XC6_FRAME_SIZE + byte_off) & ~XC6_MI20_LOGIC_MASK)
 					| mi20);
 			if (xm_col) {
-				frame_set_u64(u8_p + 23*FRAME_SIZE + byte_off, mi23_M);
-				frame_set_u64(u8_p + 26*FRAME_SIZE + byte_off, mi2526);
-				frame_set_lut64(u8_p + 24*FRAME_SIZE, row_pos*2+1, lut_ML[LUT_A]);
-				frame_set_lut64(u8_p + 21*FRAME_SIZE, row_pos*2+1, lut_ML[LUT_B]);
-				frame_set_lut64(u8_p + 24*FRAME_SIZE, row_pos*2, lut_ML[LUT_C]);
-				frame_set_lut64(u8_p + 21*FRAME_SIZE, row_pos*2, lut_ML[LUT_D]);
-				frame_set_lut64(u8_p + 27*FRAME_SIZE, row_pos*2+1, lut_X[LUT_A]);
-				frame_set_lut64(u8_p + 29*FRAME_SIZE, row_pos*2+1, lut_X[LUT_B]);
-				frame_set_lut64(u8_p + 27*FRAME_SIZE, row_pos*2, lut_X[LUT_C]);
-				frame_set_lut64(u8_p + 29*FRAME_SIZE, row_pos*2, lut_X[LUT_D]);
+				frame_set_u64(u8_p + 23*XC6_FRAME_SIZE + byte_off, mi23_M);
+				frame_set_u64(u8_p + 26*XC6_FRAME_SIZE + byte_off, mi2526);
+				frame_set_lut64(u8_p + 24*XC6_FRAME_SIZE, row_pos*2+1, lut_ML[LUT_A]);
+				frame_set_lut64(u8_p + 21*XC6_FRAME_SIZE, row_pos*2+1, lut_ML[LUT_B]);
+				frame_set_lut64(u8_p + 24*XC6_FRAME_SIZE, row_pos*2, lut_ML[LUT_C]);
+				frame_set_lut64(u8_p + 21*XC6_FRAME_SIZE, row_pos*2, lut_ML[LUT_D]);
+				frame_set_lut64(u8_p + 27*XC6_FRAME_SIZE, row_pos*2+1, lut_X[LUT_A]);
+				frame_set_lut64(u8_p + 29*XC6_FRAME_SIZE, row_pos*2+1, lut_X[LUT_B]);
+				frame_set_lut64(u8_p + 27*XC6_FRAME_SIZE, row_pos*2, lut_X[LUT_C]);
+				frame_set_lut64(u8_p + 29*XC6_FRAME_SIZE, row_pos*2, lut_X[LUT_D]);
 			} else { // xl
 				// mi23 is unused in xl cols - no need to write it
 				RC_ASSERT(model, !mi23_M);
-				frame_set_u64(u8_p + 25*FRAME_SIZE + byte_off, mi2526);
-				frame_set_lut64(u8_p + 23*FRAME_SIZE, row_pos*2+1, lut_ML[LUT_A]);
-				frame_set_lut64(u8_p + 21*FRAME_SIZE, row_pos*2+1, lut_ML[LUT_B]);
-				frame_set_lut64(u8_p + 23*FRAME_SIZE, row_pos*2, lut_ML[LUT_C]);
-				frame_set_lut64(u8_p + 21*FRAME_SIZE, row_pos*2, lut_ML[LUT_D]);
-				frame_set_lut64(u8_p + 26*FRAME_SIZE, row_pos*2+1, lut_X[LUT_A]);
-				frame_set_lut64(u8_p + 28*FRAME_SIZE, row_pos*2+1, lut_X[LUT_B]);
-				frame_set_lut64(u8_p + 26*FRAME_SIZE, row_pos*2, lut_X[LUT_C]);
-				frame_set_lut64(u8_p + 28*FRAME_SIZE, row_pos*2, lut_X[LUT_D]);
+				frame_set_u64(u8_p + 25*XC6_FRAME_SIZE + byte_off, mi2526);
+				frame_set_lut64(u8_p + 23*XC6_FRAME_SIZE, row_pos*2+1, lut_ML[LUT_A]);
+				frame_set_lut64(u8_p + 21*XC6_FRAME_SIZE, row_pos*2+1, lut_ML[LUT_B]);
+				frame_set_lut64(u8_p + 23*XC6_FRAME_SIZE, row_pos*2, lut_ML[LUT_C]);
+				frame_set_lut64(u8_p + 21*XC6_FRAME_SIZE, row_pos*2, lut_ML[LUT_D]);
+				frame_set_lut64(u8_p + 26*XC6_FRAME_SIZE, row_pos*2+1, lut_X[LUT_A]);
+				frame_set_lut64(u8_p + 28*XC6_FRAME_SIZE, row_pos*2+1, lut_X[LUT_B]);
+				frame_set_lut64(u8_p + 26*XC6_FRAME_SIZE, row_pos*2, lut_X[LUT_C]);
+				frame_set_lut64(u8_p + 28*XC6_FRAME_SIZE, row_pos*2, lut_X[LUT_D]);
 			}
 		}
 	}

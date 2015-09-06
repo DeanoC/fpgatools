@@ -448,7 +448,7 @@ void printf_type2(uint8_t *d, int len, int inpos, int num_entries)
 	for (i = 0; i < num_entries; i++) {
 		u64 = frame_get_u64(&d[inpos+i*8]);
 		if (!u64) continue;
-		printf("type2 8*%i 0x%016lX\n", i, u64);
+		printf("type2 8*%i 0x%016lld\n", i, u64);
 		for (j = 0; j < 4; j++) {
 			u16 = frame_get_u16(&d[inpos+i*8+j*2]);
 			if (u16)
@@ -500,7 +500,7 @@ void printf_ramb_data(const uint8_t *bits, int row, int bram_idx)
 	}
 	nonzero_tail = 0;
 	for (i = 0; i < XC6_BRAM_DATA_SUFFIX_LEN; i++) {
-		if (bits[XC6_BRAM_DATA_FRAMES_PER_DEV*FRAME_SIZE-XC6_BRAM_DATA_SUFFIX_LEN + i]) {
+		if (bits[ XC6_BRAM_DATA_FRAMES_PER_DEV * XC6_FRAME_SIZE - XC6_BRAM_DATA_SUFFIX_LEN + i]) {
 			nonzero_tail = 1;
 			break;
 		}
@@ -516,7 +516,7 @@ void printf_ramb_data(const uint8_t *bits, int row, int bram_idx)
 		if (nonzero_tail) {
 			printf(" tail");
 			for (i = 0; i < XC6_BRAM_DATA_SUFFIX_LEN; i++)
-				printf(" %02X", bits[XC6_BRAM_DATA_FRAMES_PER_DEV*FRAME_SIZE-XC6_BRAM_DATA_SUFFIX_LEN + i]);
+				printf(" %02X", bits[ XC6_BRAM_DATA_FRAMES_PER_DEV * XC6_FRAME_SIZE - XC6_BRAM_DATA_SUFFIX_LEN + i]);
 			printf("\n");
 		}
 	}
@@ -780,9 +780,9 @@ uint64_t frame_get_lut64(int lut_pos, const uint8_t *two_minors, int v16)
 	if (off_in_frame >= XC6_HCLK_POS)
 		off_in_frame += XC6_HCLK_BYTES;
 	lutw_tl = frame_get_pinword(two_minors + off_in_frame);
-	lutw_tr = frame_get_pinword(two_minors + FRAME_SIZE + off_in_frame);
+	lutw_tr = frame_get_pinword(two_minors + XC6_FRAME_SIZE + off_in_frame);
 	lutw_bl = frame_get_pinword(two_minors + off_in_frame + XC6_WORD_BYTES);
-	lutw_br = frame_get_pinword(two_minors + FRAME_SIZE + off_in_frame + XC6_WORD_BYTES);
+	lutw_br = frame_get_pinword(two_minors + XC6_FRAME_SIZE + off_in_frame + XC6_WORD_BYTES);
 	return xc6_lut_value(lut_pos, lutw_tl, lutw_tr, lutw_bl, lutw_br);
 }
 
@@ -805,7 +805,7 @@ void frame_set_lut64(uint8_t* two_minors, int v32, uint64_t v)
 	if (off_in_frame >= 64)
 		off_in_frame += XC6_HCLK_BYTES;
 	frame_set_u32(&two_minors[off_in_frame], m0);
-	frame_set_u32(&two_minors[FRAME_SIZE + off_in_frame], m1);
+	frame_set_u32(&two_minors[XC6_FRAME_SIZE + off_in_frame], m1);
 }
 
 // see ug380, table 2-5, bit ordering
@@ -843,7 +843,7 @@ int printf_frames(const uint8_t* bits, int max_frames,
 	// value 128 chosen randomly for readability to decide
 	// between printing individual bits or a hex block.
 	if (count_set_bits(bits, 130) <= 128) {
-		for (i = 0; i < FRAME_SIZE*8; i++) {
+		for (i = 0; i < XC6_FRAME_SIZE*8; i++) {
 			if (!frame_get_bit(bits, i)) continue;
 			if (i >= 512 && i < 528) { // hclk
 				if (!no_clock)
@@ -863,7 +863,7 @@ int printf_frames(const uint8_t* bits, int max_frames,
 	}
 	printf("%shex\n", prefix);
 	printf("{\n");
-	dump_data(1, bits, /*len*/ FRAME_SIZE, /*base*/ 16);
+	dump_data(1, bits, /*len*/ XC6_FRAME_SIZE, /*base*/ 16);
 	printf("}\n");
 	return 1;
 }
@@ -901,7 +901,7 @@ void printf_extrabits(const uint8_t* maj_bits, int start_minor, int num_minors,
 
 	for (minor = start_minor; minor < start_minor + num_minors; minor++) {
 		for (bit = start_bit; bit < start_bit + num_bits; bit++) {
-			if (frame_get_bit(&maj_bits[minor*FRAME_SIZE], bit)) {
+			if (frame_get_bit(&maj_bits[minor*XC6_FRAME_SIZE], bit)) {
 				bit_no_clk = bit;
 				if (bit_no_clk >= 528)
 					bit_no_clk -= XC6_HCLK_BITS;
@@ -924,9 +924,9 @@ void write_lut64(uint8_t* two_minors, int off_in_frame, uint64_t u64)
 		if (u64 & (1LL << (i*4+1)))
 			frame_set_bit(two_minors, off_in_frame+(i*2)+1);
 		if (u64 & (1LL << (i*4+2)))
-			frame_set_bit(two_minors + FRAME_SIZE, off_in_frame+i*2);
+			frame_set_bit(two_minors + XC6_FRAME_SIZE, off_in_frame+i*2);
 		if (u64 & (1LL << (i*4+3)))
-			frame_set_bit(two_minors + FRAME_SIZE, off_in_frame+(i*2)+1);
+			frame_set_bit(two_minors + XC6_FRAME_SIZE, off_in_frame+(i*2)+1);
 	}
 }
 
@@ -941,7 +941,7 @@ void printf_routing_2minors(const uint8_t* bits, int row, int major,
 	for (y = 0; y < 16; y++) {
 		hclk = (y < 8) ? 0 : 2;
 		u64_0 = frame_get_u64(bits + y*8 + hclk);
-		u64_1 = frame_get_u64(bits + y*8 + hclk + FRAME_SIZE);
+		u64_1 = frame_get_u64(bits + y*8 + hclk + XC6_FRAME_SIZE);
 		if (u64_0 || u64_1) {
 			for (i = 0; i < 128; i++)
 				bit_str[i] = '0';
@@ -1024,22 +1024,22 @@ void printf_lut_words(const uint8_t *major_bits, int row, int major, int minor, 
 	if (off_in_frame >= XC6_HCLK_POS)
 		off_in_frame += XC6_HCLK_BYTES;
 
-	w = frame_get_pinword(&major_bits[minor*FRAME_SIZE + off_in_frame]);
+	w = frame_get_pinword(&major_bits[minor*XC6_FRAME_SIZE + off_in_frame]);
 	if (w)
 		printf("r%i ma%i v%i_%i mi%i pin %s", row, major, XC6_WORD_BITS,
 			v16_i, minor, fmt_word(w));
 
-	w = frame_get_pinword(&major_bits[minor*FRAME_SIZE + off_in_frame + XC6_WORD_BYTES]);
+	w = frame_get_pinword(&major_bits[minor*XC6_FRAME_SIZE + off_in_frame + XC6_WORD_BYTES]);
 	if (w)
 		printf("r%i ma%i v%i_%i mi%i pin %s", row, major, XC6_WORD_BITS,
 			v16_i+1, minor, fmt_word(w));
 
-	w = frame_get_pinword(&major_bits[(minor+1)*FRAME_SIZE + off_in_frame]);
+	w = frame_get_pinword(&major_bits[(minor+1)*XC6_FRAME_SIZE + off_in_frame]);
 	if (w)
 		printf("r%i ma%i v%i_%i mi%i pin %s", row, major, XC6_WORD_BITS,
 			v16_i, minor+1, fmt_word(w));
 
-	w = frame_get_pinword(&major_bits[(minor+1)*FRAME_SIZE + off_in_frame + XC6_WORD_BYTES]);
+	w = frame_get_pinword(&major_bits[(minor+1)*XC6_FRAME_SIZE + off_in_frame + XC6_WORD_BYTES]);
 	if (w)
 		printf("r%i ma%i v%i_%i mi%i pin %s", row, major, XC6_WORD_BITS,
 			v16_i+1, minor+1, fmt_word(w));

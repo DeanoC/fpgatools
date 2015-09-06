@@ -366,7 +366,7 @@ int printf_LOGIC(FILE* f, struct fpga_model* model,
 			if (cfg->a2d[j].flags & LUT6VAL_SET) {
 				RC_ASSERT(model, !ULL_HIGH32(cfg->a2d[j].lut6_val));
 				if (print_hex_vals)
-					fprintf(f, "%s%s\"%c6_lut_val\" : \"0x%016lX\" }",
+					fprintf(f, "%s%s\"%c6_lut_val\" : \"0x%016llX\" }",
 						first_line ? "" : ",\n", pref, 'A'+j, cfg->a2d[j].lut6_val);
 				else {
 					str = bool_bits2str(cfg->a2d[j].lut6_val, 32);
@@ -389,7 +389,7 @@ int printf_LOGIC(FILE* f, struct fpga_model* model,
 		} else {
 			if (cfg->a2d[j].flags & LUT6VAL_SET) {
 				if (print_hex_vals)
-					fprintf(f, "%s%s\"%c6_lut_val\" : \"0x%016lX\" }",
+					fprintf(f, "%s%s\"%c6_lut_val\" : \"0x%016llX\" }",
 						first_line ? "" : ",\n", pref, 'A'+j, cfg->a2d[j].lut6_val);
 				else {
 					str = bool_bits2str(cfg->a2d[j].lut6_val, 64);

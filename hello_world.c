@@ -67,20 +67,25 @@ int main(int argc, char** argv)
 		logic_type_idx, LI_D3);
 	fnet_route(&model, inA_net);
 
-	fnet_new(&model, &inB_net);
-	fnet_add_port(&model, inB_net, iob_inB_y, iob_inB_x,
-		DEV_IOB, iob_inB_type_idx, IOB_OUT_I);
-	fnet_add_port(&model, inB_net, logic_y, logic_x, DEV_LOGIC,
-		logic_type_idx, LI_D5);
-	fnet_route(&model, inB_net);
+//	fnet_new(&model, &inB_net);
+//	fnet_add_port(&model, inB_net, iob_inB_y, iob_inB_x,
+//		DEV_IOB, iob_inB_type_idx, IOB_OUT_I);
+//	fnet_add_port(&model, inB_net, logic_y, logic_x, DEV_LOGIC,
+//		logic_type_idx, LI_D5);
+//	fnet_route(&model, inB_net);
 
-	fnet_new(&model, &out_net);
-	fnet_add_port(&model, out_net, logic_y, logic_x, DEV_LOGIC,
-		logic_type_idx, LO_D);
-	fnet_add_port(&model, out_net, iob_out_y, iob_out_x,
-		DEV_IOB, iob_out_type_idx, IOB_IN_O);
-	fnet_route(&model, out_net);
+//	fnet_new(&model, &out_net);
+//	fnet_add_port(&model, out_net, logic_y, logic_x, DEV_LOGIC,
+//		logic_type_idx, LO_D);
+//	fnet_add_port(&model, out_net, iob_out_y, iob_out_x,
+//		DEV_IOB, iob_out_type_idx, IOB_IN_O);
+//	fnet_route(&model, out_net);
 
-	write_floorplan(stdout, &model, FP_DEFAULT);
+//	if (rc = write_floorplan(stdout, &model, FP_DEFAULT) ) {
+	if ((rc = write_bitfile(stdout, &model))) {
+	
+		fprintf(stderr, "Error writing bitfile.\n");
+	}
+
 	return fpga_free_model(&model);
 }

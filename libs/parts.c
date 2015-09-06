@@ -8,11 +8,26 @@
 #include "model.h"
 #include "control.h"
 
+// for slx9 and slx9
+#define NUM_ROWS		4 
+#define FRAMES_DATA_START	0
+//#define FRAMES_DATA_LEN		(NUM_ROWS*FRAMES_PER_ROW*XC6_FRAME_SIZE)
+#define BRAM_DATA_START		FRAMES_DATA_LEN
+//#define BRAM_DATA_LEN		(4*144*XC6_FRAME_SIZE)
+#define IOB_DATA_START		(BRAM_DATA_START + BRAM_DATA_LEN)
+#define IOB_WORDS		(cfg->reg[cfg->FLR_reg].int_v) // 16-bit words, for slx4 and slx9
+//#define IOB_DATA_LEN		(IOB_WORDS*2)
+#define BITS_LEN		(IOB_DATA_START+IOB_DATA_LEN)
+
 const struct xc_die *xc_die_info(int idcode)
 {
 	static const struct xc_die xc6slx9_info = {
 		.idcode = XC6SLX9,
-		.num_rows = 4,
+		.num_logical_rows = 73,
+		.num_logical_cols = 45,
+		.num_rows = 4,				// num_logical-5/17   5=2t+1c+2b 17=8+c+8
+		.num_cols = 18,				// num_logical-(10-1)/2    10=5l+1c+5r 
+		.num_bram_in_KB = 576,
 		.left_wiring =
 			/* row 3 */ "UWUWUWUW" "WWWWUUUU" \
 			/* row 2 */ "UUUUUUUU" "WWWWWWUU" \
@@ -1235,6 +1250,7 @@ int get_rightside_major(int idcode)
 	}
 	return XC6_SLX9_RIGHTMOST_MAJOR;
 }
+
 
 int get_major_framestart(int idcode, int major)
 {
